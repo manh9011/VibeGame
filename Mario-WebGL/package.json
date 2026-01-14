@@ -11,10 +11,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "jquery": "^3.7.1",
-    "pixi.js": "^8.15.0"
-  },
   "devDependencies": {
     "vite": "^5.0.0"
   }
