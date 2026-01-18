@@ -18,19 +18,28 @@ const {
         <div class="bg-white p-6 rounded-xl shadow-sm border">
             <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fa-solid fa-key"></i> API
                 Configuration</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">Gemini API Key (Bắt buộc để
-                        sinh)</label>
-                    <input v-model="apiKeys.gemini" type="text"
-                        class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="AIzaSy...">
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Gemini API Key (Bắt buộc để
+                            sinh)</label>
+                        <input v-model="apiKeys.gemini" type="text"
+                            class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="AIzaSy...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Pollinations API Key (Tùy
+                            chọn)</label>
+                        <input v-model="apiKeys.pollinations" type="text"
+                            class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
+                            placeholder="Để trống nếu dùng free tier">
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">Pollinations API Key (Tùy
-                        chọn)</label>
-                    <input v-model="apiKeys.pollinations" type="text"
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Gemini API URL (Tùy chọn - Custom Endpoint)</label>
+                    <input v-model="apiKeys.geminiApiUrl" type="text"
                         class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
-                        placeholder="Để trống nếu dùng free tier">
+                        placeholder="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp">
+                    <p class="text-xs text-gray-500 mt-1">Để trống để dùng URL mặc định. URL không cần bao gồm ":generateContent"</p>
                 </div>
             </div>
         </div>

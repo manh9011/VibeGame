@@ -237,9 +237,13 @@ export function useAdmin() {
                 Return ONLY JSON.
             `;
 
-            const response = await fetch(`https://antigravity.manh9011.io.vn/v1beta/models/gemini-3-flash:generateContent?key=${apiKeys.gemini}`, {
+            const geminiUrl = apiKeys.geminiApiUrl || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp';
+            const response = await fetch(`${geminiUrl}:generateContent`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKeys.gemini}`
+                },
                 body: JSON.stringify({
                     contents: [{
                         parts: [

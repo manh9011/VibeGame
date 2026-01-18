@@ -13,6 +13,7 @@ export interface Question {
 
 export interface ApiKeys {
     gemini: string;
+    geminiApiUrl: string;
     pollinations: string;
 }
 

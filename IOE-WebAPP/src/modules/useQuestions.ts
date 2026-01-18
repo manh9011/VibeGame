@@ -32,7 +32,7 @@ const KEY_DIFFICULTY_CONFIG = 'ioe-difficulty-config';
 // State
 const questions = ref<Question[]>([]);
 const examResults = ref<ExamResult[]>([]);
-const apiKeys = ref<ApiKeys>({ gemini: '', pollinations: '' });
+const apiKeys = ref<ApiKeys>({ gemini: '', geminiApiUrl: 'https://antigravity.manh9011.io.vn/v1beta/models/gemini-3-flash', pollinations: '' });
 const difficultyConfig = ref<Record<string, DifficultyConfig>>({
     easy: {
         playTime: 30,
