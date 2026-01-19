@@ -136,7 +136,7 @@ const executeDelete = async () => {
         await deleteQuestion(deleteTargetIndex.value);
     }
     cancelDelete();
-    alert("Đã xóa và lưu thành công!");
+    await showAlert("Đã xóa và lưu thành công!", "Thông báo");
 };
 
 const cancelDelete = () => {
@@ -246,9 +246,26 @@ const handleStrOptions = (q: any, val: string) => {
     q.options = val.split(',').map(s => s.trim());
 };
 
+// Store original question ID for saving
+const editingOriginalId = ref<string | null>(null);
+
+const openEditDialog = (q: any) => {
+    // Create a deep copy of the question
+    editingQuestion.value = JSON.parse(JSON.stringify(q));
+    editingOriginalId.value = q.id;
+};
+
 const saveAndCloseEdit = async () => {
+    if (editingOriginalId.value && editingQuestion.value) {
+        // Find the original question and update it
+        const originalIndex = questions.value.findIndex(q => q.id === editingOriginalId.value);
+        if (originalIndex !== -1) {
+            Object.assign(questions.value[originalIndex], editingQuestion.value);
+        }
+    }
     await save();
     editingQuestion.value = null;
+    editingOriginalId.value = null;
     await showAlert("Đã lưu thành công!", "Thông báo");
 };
 
@@ -385,7 +402,7 @@ const handleRefresh = async () => {
                                     :title="q.isHidden ? 'Hiện câu hỏi' : 'Ẩn câu hỏi'">
                                     <i :class="['fa-solid', q.isHidden ? 'fa-eye-slash' : 'fa-eye']"></i>
                                 </button>
-                                <button @click="editingQuestion = q" class="text-orange-500 hover:text-orange-700"><i
+                                <button @click="openEditDialog(q)" class="text-orange-500 hover:text-orange-700"><i
                                         class="fa-solid fa-pen"></i></button>
                                 <button @click="confirmDelete(questions.findIndex(item => item.id === q.id))"
                                     class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
@@ -567,10 +584,16 @@ const handleRefresh = async () => {
                         </div>
                     </div>
 
+                    <div v-if="editingQuestion.type === 2">
+                        <label class="block text-xs font-bold mb-1">Đoạn văn đọc hiểu (Passage)</label>
+                        <textarea v-model="editingQuestion.passage" class="w-full border p-2 rounded bg-orange-50"
+                            rows="4" placeholder="Nhập đoạn văn cho câu hỏi đọc hiểu..."></textarea>
+                    </div>
+
                     <div>
                         <label class="block text-xs font-bold mb-1">Câu hỏi (HTML support)</label>
-                        <textarea v-model="editingQuestion.question" class="w-full border p-2 rounded"
-                            rows="3"></textarea>
+                        <input type="text" v-model="editingQuestion.question" class="w-full border p-2 rounded"
+                            rows="3" />
                     </div>
 
                     <div>
@@ -584,20 +607,21 @@ const handleRefresh = async () => {
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold mb-1">Đáp án đúng</label>
-                            <input v-model="editingQuestion.correct" type="text" class="w-full border p-2 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold mb-1">Audio Script</label>
-                            <input v-model="editingQuestion.audioScript" type="text" class="w-full border p-2 rounded">
-                        </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-1">Đáp án đúng</label>
+                        <input v-model="editingQuestion.correct" type="text" class="w-full border p-2 rounded">
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-bold mb-1">Image Prompt (loại 10)</label>
-                        <input v-model="editingQuestion.imagePrompt" type="text" class="w-full border p-2 rounded">
+                    <div v-if="editingQuestion.type === 6">
+                        <label class="block text-xs font-bold mb-1">Audio Script (Nghe)</label>
+                        <input v-model="editingQuestion.audioScript" type="text"
+                            class="w-full border p-2 rounded bg-yellow-50">
+                    </div>
+
+                    <div v-if="editingQuestion.type === 10">
+                        <label class="block text-xs font-bold mb-1">Image Prompt (Mô tả hình ảnh)</label>
+                        <input v-model="editingQuestion.imagePrompt" type="text"
+                            class="w-full border p-2 rounded bg-purple-50">
                     </div>
                 </div>
 

@@ -3,10 +3,12 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuestions } from '../modules/useQuestions';
 import { useGameState } from '../modules/useGameState';
+import { useModal } from '../modules/useModal';
 
 const router = useRouter();
 const { questions, upstashToken, setToken, load } = useQuestions();
 const { setGameSettings } = useGameState();
+const { showAlert } = useModal();
 
 const difficulty = ref('easy');
 const selectedGrade = ref<number>(1);
@@ -26,13 +28,16 @@ onMounted(async () => {
 });
 
 const confirmKey = async () => {
-    if (!inputKey.value) return alert("Vui lòng nhập Key!");
+    if (!inputKey.value) {
+        await showAlert("Vui lòng nhập Key!", "Lỗi");
+        return;
+    }
     setToken(inputKey.value);
     try {
         await load();
         showKeyPrompt.value = false;
     } catch (e) {
-        alert("Key không hợp lệ hoặc lỗi mạng!");
+        await showAlert("Key không hợp lệ hoặc lỗi mạng!", "Lỗi");
         showKeyPrompt.value = true; // Keep open
     }
 };
@@ -94,7 +99,7 @@ const goToAdmin = () => {
                     <div class="bg-blue-50 text-blue-700 p-2 rounded text-sm text-left">
                         <i class="fa-solid fa-info-circle"></i>
                         <span v-if="selectedGrade"> Có <b>{{questions.filter(q => q.grade === selectedGrade).length
-                        }}</b> câu hỏi cho Lớp {{ selectedGrade }}</span>
+                                }}</b> câu hỏi cho Lớp {{ selectedGrade }}</span>
                         <span v-else> Có tổng <b>{{ questions.length }}</b> câu hỏi</span>
                     </div>
 

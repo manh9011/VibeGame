@@ -263,10 +263,12 @@ export function useAdmin() {
             generateStatus.value = "Assembling questions...";
             await assembleQuestions(aiData, targetGrade.value);
 
-            alert(`Generated 100 questions for Grade ${targetGrade.value}!`);
+            const successModal = await import('./useModal').then(m => m.useModal());
+            await successModal.showAlert(`Đã sinh 100 câu hỏi cho Lớp ${targetGrade.value}!`, "Thành công");
 
         } catch (e: any) {
-            alert("Error: " + e.message);
+            const errorModal = await import('./useModal').then(m => m.useModal());
+            await errorModal.showAlert("Lỗi: " + e.message, "Lỗi sinh câu hỏi");
             console.error(e);
         } finally {
             isGenerating.value = false;
