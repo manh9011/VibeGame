@@ -1,8 +1,8 @@
 <template>
     <div class="bg-white p-4 rounded-lg shadow-sm border mb-4">
-        <div class="flex justify-between items-center mb-4 cursor-pointer" @click="isCollapsed = !isCollapsed">
+        <div class="flex justify-between items-center cursor-pointer" @click="isCollapsed = !isCollapsed">
             <h3 class="font-bold text-gray-700 flex items-center gap-2">
-                <i class="fa-solid fa-chart-pie text-indigo-500"></i> Phân bổ câu hỏi ({{ totalQuestions }})
+                <i class="fa-solid fa-chart-pie text-indigo-500"></i> Phân bổ câu hỏi
             </h3>
             <button class="text-gray-500 hover:text-indigo-600 transition-transform duration-200"
                 :class="{ 'rotate-180': isCollapsed }">
@@ -16,30 +16,38 @@
                 Chưa có câu hỏi nào trong danh sách lọc.
             </div>
 
-            <div v-else class="space-y-4">
-                <!-- Bars -->
-                <div class="space-y-3">
-                    <div v-for="stat in stats" :key="stat.type" class="flex items-center gap-3 text-sm">
-                        <div class="w-32 text-gray-600 font-medium truncate text-right" :title="stat.label">
-                            {{ stat.label }}
-                        </div>
-                        <div class="flex-grow h-4 bg-gray-100 rounded-full overflow-hidden relative group">
-                            <div class="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                                :style="{ width: `${stat.percent}%` }">
-                            </div>
-                            <!-- Tooltip on hover -->
-                            <div
-                                class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 text-white text-[10px] font-bold">
-                                {{ stat.count }} ({{ stat.percent }}%)
-                            </div>
-                        </div>
-                        <div class="w-20 text-gray-600 text-xs text-right font-bold">{{ stat.count }} ({{ stat.percent
-                            }}%)</div>
+            <div v-else class="flex flex-col lg:flex-row gap-6">
+                <!-- Pie Chart -->
+                <div class="flex-shrink-0 flex justify-center">
+                    <svg :width="pieSize" :height="pieSize" class="drop-shadow-md">
+                        <g :transform="`translate(${pieSize / 2}, ${pieSize / 2})`">
+                            <path v-for="(slice, idx) in pieSlices" :key="idx" :d="slice.path" :fill="slice.color"
+                                class="hover:opacity-80 transition-opacity cursor-pointer" :stroke="'white'"
+                                :stroke-width="2" @mouseenter="hoveredSlice = idx" @mouseleave="hoveredSlice = null" />
+                            <!-- Center circle for donut effect -->
+                            <circle :r="pieSize / 4" fill="white" />
+                            <text text-anchor="middle" dominant-baseline="middle"
+                                class="font-bold text-lg fill-gray-700" dy="-5">{{ totalQuestions }}</text>
+                            <text text-anchor="middle" dominant-baseline="middle" class="text-xs fill-gray-400"
+                                dy="12">câu
+                                hỏi</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Legend -->
+                <div class="flex-shrink-0 grid grid-cols-2 gap-x-4 gap-y-1 text-xs self-center">
+                    <div v-for="(stat, idx) in stats" :key="stat.type"
+                        class="flex items-center gap-2 transition-all duration-300 origin-left scale-90"
+                        :class="{ 'opacity-50': stat.count === 0, '!scale-100 underline': hoveredSlice === idx }">
+                        <span class="w-3 h-3 rounded-sm flex-shrink-0" :style="{ backgroundColor: colors[idx] }"></span>
+                        <span class="truncate max-w-[100px]" :title="stat.label">{{ stat.label }}</span>
+                        <span class="font-bold text-gray-600">({{ stat.count }})</span>
                     </div>
                 </div>
 
-                <!-- Mini Summary Grid -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4 pt-4 border-t">
+                <!-- Stats Grid -->
+                <div class="flex-grow grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-2 self-center">
                     <div class="bg-indigo-50 p-2 rounded text-center">
                         <div class="text-lg font-bold text-indigo-700">{{ maxType.count }}</div>
                         <div class="text-[10px] text-indigo-500 uppercase font-bold truncate">{{ maxType.label }}</div>
@@ -75,9 +83,11 @@ const props = defineProps<{
 }>();
 
 const isCollapsed = ref(false);
+const hoveredSlice = ref<number | null>(null);
+const pieSize = 150;
 
 const QUESTION_TYPES: Record<number, string> = {
-    1: 'Điền vào chỗ trống',
+    1: 'Điền chỗ trống',
     2: 'Đọc hiểu',
     3: 'Đúng/Sai',
     4: 'Tìm lỗi sai',
@@ -86,25 +96,32 @@ const QUESTION_TYPES: Record<number, string> = {
     7: 'Sắp xếp từ',
     8: 'Điền từ (Nhập)',
     9: 'Phát âm',
-    10: 'Mô tả hình ảnh'
+    10: 'Mô tả ảnh'
 };
+
+const colors = [
+    '#6366f1', // indigo
+    '#f97316', // orange
+    '#22c55e', // green
+    '#ef4444', // red
+    '#8b5cf6', // violet
+    '#06b6d4', // cyan
+    '#eab308', // yellow
+    '#ec4899', // pink
+    '#14b8a6', // teal
+    '#64748b', // slate
+];
 
 const totalQuestions = computed(() => props.questions.length);
 
 const stats = computed(() => {
     const counts: Record<number, number> = {};
-
-    // Initialize all types to 0 to show gaps? Or just show what exists?
-    // Let's show all types 1-10 so user sees what is missing
     for (let i = 1; i <= 10; i++) counts[i] = 0;
 
     props.questions.forEach(q => {
         const t = q.type || 1;
         if (counts[t] !== undefined) counts[t]++;
-        else {
-            // Edge case for unknown types
-            counts[t] = (counts[t] || 0) + 1;
-        }
+        else counts[t] = (counts[t] || 0) + 1;
     });
 
     const total = totalQuestions.value;
@@ -117,17 +134,46 @@ const stats = computed(() => {
             count,
             percent: total > 0 ? Math.round((count / total) * 100) : 0
         };
-    }).sort((a, b) => b.count - a.count); // Sort by count desc
+    }).sort((a, b) => b.count - a.count);
+});
+
+// Pie chart slices
+const pieSlices = computed(() => {
+    const total = totalQuestions.value;
+    if (total === 0) return [];
+
+    const radius = pieSize / 2 - 5;
+    let startAngle = -Math.PI / 2; // Start from top
+
+    return stats.value.map((stat, idx) => {
+        const angle = (stat.count / total) * 2 * Math.PI;
+        const endAngle = startAngle + angle;
+
+        const x1 = Math.cos(startAngle) * radius;
+        const y1 = Math.sin(startAngle) * radius;
+        const x2 = Math.cos(endAngle) * radius;
+        const y2 = Math.sin(endAngle) * radius;
+
+        const largeArc = angle > Math.PI ? 1 : 0;
+
+        const path = stat.count === 0
+            ? ''
+            : `M 0 0 L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+        startAngle = endAngle;
+
+        return {
+            path,
+            color: colors[idx % colors.length],
+            stat
+        };
+    });
 });
 
 const maxType = computed(() => stats.value[0] || { label: '-', count: 0 });
 const minType = computed(() => {
     const active = stats.value.filter(s => s.count > 0);
     if (!active.length) return { label: '-', count: 0 };
-    // get the one with lowest non-zero count? Or simply the absolute lowest (0)?
-    // Usually "Least populated" is more useful if we want to fill gaps, so 0 is fine.
-    // But if we want "Least of what we have", then filter > 0.
-    // Let's go with absolute lowest from the list (which includes 0s)
     return stats.value[stats.value.length - 1];
 });
 

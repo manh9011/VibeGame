@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useQuestions } from '../../modules/useQuestions';
 import { useModal } from '../../modules/useModal';
 import { useAdmin } from '../../modules/useAdmin'; // Need apiKeys for image preview
@@ -26,6 +26,7 @@ const QUESTION_TYPES: Record<number, string> = {
 const filterGrade = ref<number>(1); // Default to Grade 1
 const filterVisibility = ref<'ALL' | 'VISIBLE' | 'HIDDEN'>('ALL');
 const filterType = ref<number>(0); // 0 = All
+const searchQuery = ref('');
 
 const filteredQuestions = computed(() => {
     let result = questions.value;
@@ -47,7 +48,67 @@ const filteredQuestions = computed(() => {
         result = result.filter(q => q.isHidden);
     }
 
+    // Filter by Search Query
+    if (searchQuery.value.trim()) {
+        const query = searchQuery.value.toLowerCase().trim();
+        result = result.filter(q =>
+            q.question?.toLowerCase().includes(query) ||
+            q.correct?.toLowerCase().includes(query) ||
+            q.options?.some((opt: string) => opt.toLowerCase().includes(query))
+        );
+    }
+
     return result;
+});
+
+// Lazy rendering
+const ITEMS_PER_LOAD = 30;
+const visibleCount = ref(ITEMS_PER_LOAD);
+
+const visibleQuestions = computed(() => {
+    return filteredQuestions.value.slice(0, visibleCount.value);
+});
+
+const hasMoreQuestions = computed(() => visibleCount.value < filteredQuestions.value.length);
+
+const loadMore = () => {
+    visibleCount.value += ITEMS_PER_LOAD;
+};
+
+// Infinite scroll with Intersection Observer
+const loadMoreTrigger = ref<HTMLElement | null>(null);
+let observer: IntersectionObserver | null = null;
+
+onMounted(() => {
+    observer = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting && hasMoreQuestions.value) {
+            loadMore();
+        }
+    }, { threshold: 0.1, rootMargin: '100px' });
+});
+
+// Watch the ref and observe/unobserve as needed
+watch(loadMoreTrigger, (newEl: HTMLElement | null, oldEl: HTMLElement | null) => {
+    if (oldEl && observer) {
+        observer.unobserve(oldEl);
+    }
+    if (newEl && observer) {
+        nextTick(() => {
+            observer?.observe(newEl);
+        });
+    }
+});
+
+onUnmounted(() => {
+    if (observer) {
+        observer.disconnect();
+        observer = null;
+    }
+});
+
+// Reset visible count when filters change
+watch([filterGrade, filterVisibility, filterType, searchQuery], () => {
+    visibleCount.value = ITEMS_PER_LOAD;
 });
 
 // Editing State
@@ -176,14 +237,19 @@ const addEmptyQuestion = async () => {
         correct: "A",
         options: ["A", "B", "C", "D"],
         imagePrompt: "",
-        audioScript: "",
-        grade: filterGrade.value // Use current filter (which is now always valid)
+        audioScript: ""
     };
     await addQuestion(newQ as any);
 };
 
 const handleStrOptions = (q: any, val: string) => {
     q.options = val.split(',').map(s => s.trim());
+};
+
+const saveAndCloseEdit = async () => {
+    await save();
+    editingQuestion.value = null;
+    await showAlert("Đã lưu thành công!", "Thông báo");
 };
 
 const handleRefresh = async () => {
@@ -216,39 +282,75 @@ const handleRefresh = async () => {
                     </option>
                 </select>
             </div>
-            <div class="space-x-2 flex-shrink-0">
-                <button @click="handleRefresh"
-                    class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm font-bold"><i
-                        class="fa-solid fa-sync"></i> Refresh</button>
-                <button @click="addEmptyQuestion" class="bg-green-600 text-white px-3 py-1 rounded text-sm font-bold"><i
-                        class="fa-solid fa-plus"></i> Thêm</button>
-                <button @click="saveQuestionsToStorage"
-                    class="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold"><i class="fa-solid fa-save"></i>
-                    Lưu</button>
-                <button @click="confirmDelete('ALL')"
-                    class="bg-red-600 text-white px-3 py-1 rounded text-sm font-bold"><i class="fa-solid fa-trash"></i>
-                    Xóa hết</button>
-                <div class="inline-block relative group">
-                    <button class="bg-gray-200 px-3 py-1 rounded text-sm font-bold border"><i
-                            class="fa-solid fa-ellipsis-vertical"></i></button>
-                    <!-- Dropdown context menu -->
+            <div class="flex-shrink-0 flex flex-wrap gap-1">
+                <!-- Primary buttons - always visible -->
+                <button @click="handleRefresh" title="Làm mới"
+                    class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm font-bold">
+                    <i class="fa-solid fa-sync"></i><span class="hidden 2xl:inline ml-1">Làm mới</span>
+                </button>
+                <button @click="addEmptyQuestion" title="Thêm câu hỏi"
+                    class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-bold">
+                    <i class="fa-solid fa-plus"></i><span class="hidden 2xl:inline ml-1">Thêm</span>
+                </button>
+                <button @click="saveQuestionsToStorage" title="Lưu"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-bold">
+                    <i class="fa-solid fa-save"></i><span class="hidden 2xl:inline ml-1">Lưu</span>
+                </button>
+                <button @click="confirmDelete('ALL')" title="Xóa hết"
+                    class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-bold">
+                    <i class="fa-solid fa-trash"></i><span class="hidden 2xl:inline ml-1">Xóa hết</span>
+                </button>
+
+                <!-- Secondary buttons - visible on xl+, in dropdown on smaller -->
+                <button @click="setBatchVisibility(true)" title="Hiện tất cả"
+                    class="hidden xl:inline-flex bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded text-sm font-bold">
+                    <i class="fa-solid fa-eye"></i><span class="hidden 2xl:inline ml-1">Hiện all</span>
+                </button>
+                <button @click="setBatchVisibility(false)" title="Ẩn tất cả"
+                    class="hidden xl:inline-flex bg-gray-400 hover:bg-gray-500 text-white px-3 py-1 rounded text-sm font-bold">
+                    <i class="fa-solid fa-eye-slash"></i><span class="hidden 2xl:inline ml-1">Ẩn all</span>
+                </button>
+                <button @click="handleRemoveDuplicates" title="Lọc trùng"
+                    class="hidden xl:inline-flex bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm font-bold">
+                    <i class="fa-solid fa-broom"></i><span class="hidden 2xl:inline ml-1">Lọc trùng</span>
+                </button>
+
+                <!-- Dropdown for smaller screens -->
+                <div class="xl:hidden relative group">
+                    <button class="bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded text-sm font-bold border"
+                        title="Thêm tùy chọn">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
                     <div
-                        class="hidden group-hover:block absolute right-0 top-full mt-1 bg-white border rounded shadow-lg w-48 z-50">
+                        class="hidden group-hover:block absolute right-0 top-full mt-1 bg-white border rounded shadow-lg w-40 z-50">
                         <button @click="setBatchVisibility(true)"
-                            class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-xs font-bold">
-                            Hiện tất cả
+                            class="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-gray-100 text-sm">
+                            <i class="fa-solid fa-eye text-teal-500"></i> Hiện tất cả
                         </button>
                         <button @click="setBatchVisibility(false)"
-                            class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-xs font-bold">
-                            Ẩn tất cả
+                            class="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-gray-100 text-sm">
+                            <i class="fa-solid fa-eye-slash text-gray-500"></i> Ẩn tất cả
                         </button>
                         <hr>
                         <button @click="handleRemoveDuplicates"
-                            class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-xs font-bold text-red-600">
-                            Quét trùng lặp
+                            class="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-gray-100 text-sm text-orange-600">
+                            <i class="fa-solid fa-broom"></i> Lọc trùng
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Search Bar - Full Width -->
+        <div class="px-6 py-2 bg-white border-b">
+            <div class="relative">
+                <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input v-model="searchQuery" type="text" placeholder="Tìm kiếm câu hỏi..."
+                    class="w-full border p-2 pl-10 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300">
+                <button v-if="searchQuery" @click="searchQuery = ''"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors">
+                    <i class="fa-solid fa-times-circle"></i>
+                </button>
             </div>
         </div>
 
@@ -258,16 +360,24 @@ const handleRefresh = async () => {
             <QuestionChart v-if="filterType === 0" :questions="filteredQuestions" />
 
             <!-- Question List -->
-            <div class="space-y-4">
-                <div v-for="q in filteredQuestions" :key="q.id"
-                    :class="['bg-white p-4 rounded-lg shadow border border-gray-200', q.isHidden ? 'opacity-60 bg-gray-100' : '']">
+            <div class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
+                <div v-for="(q, idx) in visibleQuestions" :key="q.id"
+                    :class="['bg-white p-3 rounded-lg shadow border border-gray-200', q.isHidden ? 'opacity-60 bg-gray-100' : '']">
 
                     <!-- View Mode -->
-                    <div v-if="editingQuestion !== q">
-                        <div class="flex justify-between items-start mb-2">
-                            <h4 class="font-bold text-gray-800 flex-grow pr-4 max-h-20 overflow-hidden text-ellipsis"
-                                v-html="q.question"></h4>
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 rounded text-xs font-bold text-gray-600 bg-gray-200">#{{ idx + 1
+                                }}</span>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold text-white bg-indigo-500">
+                                    {{ QUESTION_TYPES[q.type] || q.type }}
+                                </span>
+                            </div>
                             <div class="flex space-x-2 flex-shrink-0">
+                                <div
+                                    :class="['p-1 rounded px-2 font-bold', q.isHidden ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600']">
+                                    {{ q.isHidden ? 'ĐANG ẨN' : 'ĐANG HIỆN' }}</div>
                                 <button @click="openPreview(q)" class="text-blue-500 hover:text-blue-700"
                                     title="Xem thử"><i class="fa-solid fa-eye"></i></button>
                                 <button @click="toggleHidden(q)"
@@ -277,84 +387,29 @@ const handleRefresh = async () => {
                                 </button>
                                 <button @click="editingQuestion = q" class="text-orange-500 hover:text-orange-700"><i
                                         class="fa-solid fa-pen"></i></button>
-                                <button @click="confirmDelete(questions.indexOf(q))"
+                                <button @click="confirmDelete(questions.findIndex(item => item.id === q.id))"
                                     class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
                             </div>
                         </div>
-
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600 mb-2">
-                            <div class="bg-gray-50 p-1 rounded px-2"><span class="font-bold">Loại:</span> {{
-                                QUESTION_TYPES[q.type] || q.type }}</div>
-                            <div
-                                :class="['p-1 rounded px-2 font-bold', q.isHidden ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600']">
-                                {{ q.isHidden ? 'ĐANG ẨN' : 'ĐANG HIỆN' }}</div>
-                            <div class="bg-gray-50 p-1 rounded px-2"><span class="font-bold">Đáp án:</span>
-                                {{ q.correct }}</div>
-                            <div v-if="q.grade" class="bg-blue-50 p-1 rounded px-2 text-blue-700"><span
-                                    class="font-bold">Lớp:</span> {{ q.grade }}</div>
+                        <div class="font-bold text-gray-800 flex-grow pr-4 overflow-hidden text-ellipsis"
+                            v-html="q.question">
                         </div>
-                    </div>
-
-                    <!-- Edit Mode -->
-                    <div v-else class="space-y-3 bg-blue-50 p-4 rounded-lg animate-fade-in-down">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-bold mb-1">Loại Câu Hỏi</label>
-                                <select v-model="q.type" class="w-full border p-1 rounded text-sm">
-                                    <option v-for="(label, key) in QUESTION_TYPES" :key="key" :value="Number(key)">{{
-                                        label }}</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold mb-1">Lớp</label>
-                                <select v-model="q.grade" class="w-full border p-1 rounded text-sm">
-                                    <option v-for="i in 12" :key="i" :value="i">{{ i }}</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold mb-1">Câu hỏi (HTML support)</label>
-                            <textarea v-model="q.question" class="w-full border p-2 rounded" rows="2"></textarea>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold mb-1">Options (cách nhau bởi dấu
-                                phẩy)</label>
-                            <input :value="q.options.join(', ')"
-                                @input="e => handleStrOptions(q, (e.target as HTMLInputElement).value)" type="text"
-                                class="w-full border p-2 rounded mb-1">
-                            <div class="flex flex-wrap gap-2">
-                                <span v-for="(opt, i) in q.options" :key="i"
-                                    class="bg-white border rounded px-2 text-xs text-gray-500">{{ opt }}</span>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-bold mb-1">Đáp án đúng (Text khớp 100%
-                                    với option)</label>
-                                <input v-model="q.correct" type="text" class="w-full border p-2 rounded">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold mb-1">Audio Script (Cho loại
-                                    Nghe/Phát âm)</label>
-                                <input v-model="q.audioScript" type="text" class="w-full border p-2 rounded">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold mb-1">Image Prompt (Cho loại mô tả
-                                ảnh/10)</label>
-                            <input v-model="q.imagePrompt" type="text" class="w-full border p-2 rounded">
-                        </div>
-
-                        <div class="flex justify-end pt-2">
-                            <button @click="editingQuestion = null"
-                                class="w-full bg-blue-600 text-white py-1 rounded font-bold text-sm">Xong</button>
-                        </div>
+                        <div class="p-1 px-2 bg-gray-100 rounded"><span class="font-bold">Đáp án:</span>
+                            {{ q.correct }}</div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Infinite Scroll Trigger -->
+            <div v-if="hasMoreQuestions" ref="loadMoreTrigger" class="flex justify-center py-4">
+                <div class="flex items-center gap-2 text-gray-400">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span class="text-sm">Đang tải thêm...</span>
+                </div>
+            </div>
+            <div v-else-if="filteredQuestions.length > ITEMS_PER_LOAD" class="text-center py-4 text-gray-400 text-sm">
+                <i class="fa-solid fa-check-circle text-green-500 mr-1"></i> Đã hiển thị tất cả {{
+                    filteredQuestions.length }} câu hỏi
             </div>
         </div>
 
@@ -385,7 +440,8 @@ const handleRefresh = async () => {
             <div
                 class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto animate-fade-in-down flex flex-col">
                 <div class="flex justify-between items-center p-4 border-b">
-                    <h3 class="font-bold text-lg text-gray-800"><i class="fa-solid fa-eye text-indigo-500"></i> Xem thử
+                    <h3 class="font-bold text-lg text-gray-800"><i class="fa-solid fa-eye text-indigo-500"></i> Xem
+                        thử
                         câu hỏi</h3>
                     <button @click="closePreview" class="text-gray-500 hover:text-red-500 text-2xl">&times;</button>
                 </div>
@@ -414,7 +470,8 @@ const handleRefresh = async () => {
                                         class="max-w-full h-auto rounded-lg shadow-lg" alt="AI Generated">
                                     <div v-else class="text-center p-4">
                                         <i class="fa-solid fa-image text-4xl text-gray-300 mb-2"></i>
-                                        <p class="text-sm text-gray-500 italic">{{ previewQuestion.imagePrompt }}</p>
+                                        <p class="text-sm text-gray-500 italic">{{ previewQuestion.imagePrompt }}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -482,6 +539,74 @@ const handleRefresh = async () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div v-if="editingQuestion"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+            <div
+                class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fade-in-down flex flex-col">
+                <div class="flex justify-between items-center p-4 border-b bg-orange-50">
+                    <h3 class="font-bold text-lg text-gray-800"><i class="fa-solid fa-pen text-orange-500"></i> Chỉnh
+                        sửa
+                        câu hỏi</h3>
+                    <button @click="editingQuestion = null"
+                        class="text-gray-500 hover:text-red-500 text-2xl">&times;</button>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Loại Câu Hỏi</label>
+                            <select v-model="editingQuestion.type" class="w-full border p-2 rounded text-sm">
+                                <option v-for="(label, key) in QUESTION_TYPES" :key="key" :value="Number(key)">
+                                    {{ label }}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold mb-1">Câu hỏi (HTML support)</label>
+                        <textarea v-model="editingQuestion.question" class="w-full border p-2 rounded"
+                            rows="3"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold mb-1">Options (cách nhau bởi dấu phẩy)</label>
+                        <input :value="editingQuestion.options?.join(', ')"
+                            @input="e => handleStrOptions(editingQuestion, (e.target as HTMLInputElement).value)"
+                            type="text" class="w-full border p-2 rounded mb-2">
+                        <div class="flex flex-wrap gap-2">
+                            <span v-for="(opt, i) in editingQuestion.options" :key="i"
+                                class="bg-gray-100 border rounded px-2 py-1 text-xs text-gray-600">{{ opt }}</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Đáp án đúng</label>
+                            <input v-model="editingQuestion.correct" type="text" class="w-full border p-2 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Audio Script</label>
+                            <input v-model="editingQuestion.audioScript" type="text" class="w-full border p-2 rounded">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold mb-1">Image Prompt (loại 10)</label>
+                        <input v-model="editingQuestion.imagePrompt" type="text" class="w-full border p-2 rounded">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
+                    <button @click="editingQuestion = null"
+                        class="px-4 py-2 rounded bg-gray-200 text-gray-700 font-bold hover:bg-gray-300">Hủy</button>
+                    <button @click="saveAndCloseEdit"
+                        class="px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700"><i
+                            class="fa-solid fa-save mr-1"></i> Lưu</button>
                 </div>
             </div>
         </div>
