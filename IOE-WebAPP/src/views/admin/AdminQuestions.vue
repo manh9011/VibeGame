@@ -259,7 +259,7 @@ const handleRefresh = async () => {
 
             <!-- Question List -->
             <div class="space-y-4">
-                <div v-for="(q, index) in filteredQuestions" :key="q.id"
+                <div v-for="q in filteredQuestions" :key="q.id"
                     :class="['bg-white p-4 rounded-lg shadow border border-gray-200', q.isHidden ? 'opacity-60 bg-gray-100' : '']">
 
                     <!-- View Mode -->
