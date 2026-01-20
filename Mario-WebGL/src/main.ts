@@ -4,6 +4,7 @@
 
 import { Application } from "./Enjine/application";
 import { LoadingState } from "./code/loadingState";
+import { VirtualControls } from "./code/virtualControls";
 import "./code/setup";
 import "./code/music";
 import "./style.css";
@@ -19,4 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
     (context as any).msImageSmoothingEnabled = false;
 
     new Application().Initialize(new LoadingState(), 320, 240);
+
+    if (Application.IsMobile()) {
+        VirtualControls.Initialize();
+    }
 });

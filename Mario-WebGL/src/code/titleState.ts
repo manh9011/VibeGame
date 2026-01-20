@@ -7,6 +7,7 @@ import { Sprite } from "../Enjine/sprite";
 import { Resources } from "../Enjine/resources";
 import { SpriteCuts } from "./spriteCuts";
 import { KeyboardInput, Keys } from "../Enjine/keyboardInput";
+import { MouseInput } from "../Enjine/mouseInput";
 import { Mario } from "./setup";
 import { MapState } from "./mapState";
 import { Character } from "./character";
@@ -115,7 +116,7 @@ export class TitleState extends GameState {
     }
 
     CheckForChange(context: GameStateContext): void {
-        if (KeyboardInput.IsKeyDown(Keys.S)) {
+        if (KeyboardInput.IsKeyDown(Keys.S) || MouseInput.IsButtonDown(0)) {
             context.ChangeState(Mario.GlobalMapState);
         }
     }

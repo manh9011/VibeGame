@@ -57,4 +57,11 @@ export class Application {
 
         this.timer.Start();
     }
+
+    /**
+     * Checks if the current device is a mobile device.
+     */
+    static IsMobile(): boolean {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
 }
