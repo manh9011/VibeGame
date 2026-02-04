@@ -43,6 +43,7 @@ HeroManageState.refreshHeroList = function () {
 
     // Optimized: Single pass
     DB.data.heroes.forEach(h => {
+        if (h.embeddedIn) return; // Hide heroes assigned to towers
         if (teamSet.has(h.id)) return; // Already separated
         otherHeroes.push(h);
     });
@@ -59,7 +60,7 @@ HeroManageState.refreshHeroList = function () {
         let tid = DB.data.team[i];
         if (tid) {
             let h = DB.data.heroes.find(x => x.id === tid);
-            if (h) teamHeroes.push(h);
+            if (h && !h.embeddedIn) teamHeroes.push(h);
         }
     }
 

@@ -9,6 +9,7 @@ import {
 
     DB, CLASS_TYPES, ITEM_TYPES, RARITY
 } from '../context.js';
+import { MAX_HERO_LEVEL, MAX_MAIN_STAT, MAX_RATE_STAT } from '../data/dataManager.js';
 import {
     drawGlobalHeader, drawButton, drawText, drawRect, drawRoundedRect,
     drawCircle, addToast, drawToasts
@@ -102,7 +103,7 @@ function calculateSimulatedStats(classType, level, stars, equipment) {
     // Use config stats
     const s = classType.baseStats;
     const g = classType.growth;
-    const r = classType.levelRate || { hp: 1.05, atk: 1.05, def: 1.02, regen: 1.05, spd: 1, atkSpd: 1 };
+    const r = classType.levelRate || { hp: 1.012, atk: 1.011, def: 1.009, regen: 1.012, spd: 1.002, atkSpd: 1.002, crit: 1.001, eva: 1.001 };
 
     // 1. Star Growth (Base)
     const st = stars - 1;
@@ -120,12 +121,14 @@ function calculateSimulatedStats(classType, level, stars, equipment) {
     // 2. Level Scaling
     if (level > 1) {
         const lvl = level - 1;
-        stats.hp = Math.floor(stats.hp * Math.pow(r.hp, lvl));
-        stats.atk = Math.floor(stats.atk * Math.pow(r.atk, lvl));
+        stats.hp = Math.min(MAX_MAIN_STAT, Math.floor(stats.hp * Math.pow(r.hp, lvl)));
+        stats.atk = Math.min(MAX_MAIN_STAT, Math.floor(stats.atk * Math.pow(r.atk, lvl)));
         stats.def = Math.floor(stats.def * Math.pow(r.def, lvl));
         stats.regen = Math.floor(stats.regen * Math.pow(r.regen, lvl));
         if (r.spd !== 1) stats.spd = parseFloat((stats.spd * Math.pow(r.spd, lvl)).toFixed(2));
         if (r.atkSpd !== 1) stats.atkSpd = parseFloat((stats.atkSpd * Math.pow(r.atkSpd, lvl)).toFixed(2));
+        if (r.crit && r.crit !== 1) stats.crit = Math.min(MAX_RATE_STAT, Math.floor(stats.crit * Math.pow(r.crit, lvl)));
+        if (r.eva && r.eva !== 1) stats.eva = Math.min(MAX_RATE_STAT, Math.floor(stats.eva * Math.pow(r.eva, lvl)));
     }
 
     // Add equipment bonuses
@@ -374,7 +377,7 @@ DataBookState.drawDetail = function (ctx, x, y, w, h) {
 
     // Sliders
     drawText(ctx, `Cấp: ${this.simLevel}`, x + 20, leftY + 5, "white", 14, "left");
-    this.drawSlider(ctx, x + 100, leftY - 8, 200, 20, 1, 200, this.simLevel, (val) => this.simLevel = val);
+    this.drawSlider(ctx, x + 100, leftY - 8, 200, 20, 1, MAX_HERO_LEVEL, this.simLevel, (val) => this.simLevel = val);
     leftY += 50;
 
     drawText(ctx, `Sao: ${this.simStars} ⭐`, x + 20, leftY + 5, "yellow", 14, "left");

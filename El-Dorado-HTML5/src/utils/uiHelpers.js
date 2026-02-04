@@ -2,7 +2,8 @@
  * --- UI COMPONENTS & HELPERS ---
  */
 import { Enjine } from '../engine/core.js';
-import { CLASS_TYPES, DB, RARITY, ITEM_TYPES } from '../context.js'; // Importing DB from context to avoid circular dep if needed, or pass data as args.
+import { CLASS_TYPES, DB, RARITY, ITEM_TYPES, TOWER_TYPES } from '../context.js'; // Importing DB from context to avoid circular dep if needed, or pass data as args.
+import { MAX_MAIN_STAT, MAX_RATE_STAT } from '../data/dataManager.js';
 // Actually, for helpers, it's better to pass data as arguments to be pure, but some functions like drawGlobalHeader rely on DB.
 // We accepted the plan to import DB from context.
 
@@ -55,7 +56,7 @@ export function drawToasts(ctx) {
         if (elapsed > t.duration - 500) alpha = (t.duration - elapsed) / 500;
 
         ctx.globalAlpha = alpha;
-        let w = ctx.measureText(t.message).width + 40;
+        let w = ctx.measureText(t.message).width + 100;
         let x = (ctx.canvas.width - w) / 2;
 
         drawRoundedRect(ctx, x, y + i * 50, w, 40, 10, "rgba(0,0,0,0.8)");
@@ -129,6 +130,10 @@ export function drawText(ctx, text, x, y, color = "white", size = 20, align = "l
     ctx.font = `${size}px ${fontNames}`;
     ctx.textAlign = align;
 
+    // Ensure text is a string
+    if (text === null || text === undefined) text = "";
+    text = String(text);
+
     // Auto-add border to emoji (except stars) for better visibility
     const hasEmoji = /[^\x00-\x7F]/.test(text);
     const isStarEmoji = text.includes('⭐') || text.includes('🌟');
@@ -193,8 +198,8 @@ export function drawButton(ctx, text, x, y, w, h, color = "#444", callback, text
 
 // === HELPER VẼ GAME GLOBAL ===
 
-export function drawPlayerBase(ctx, x, y, w, h) {
-    let hpLvl = DB.data.baseStats.hpLvl;
+export function drawPlayerBase(ctx, x, y, w, h, customLevel = null) {
+    let hpLvl = customLevel !== null ? customLevel : DB.data.baseStats.hpLvl;
 
     // --- STYLE CONFIG ---
     let baseColor = "#8D6E63"; // Wood (Tier 1)
@@ -343,9 +348,20 @@ export function drawGlobalHeader(ctx, canvasWidth) {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, canvasWidth, 50);
     drawText(ctx, `🏰 Lv.${DB.data.level}`, 20, 32, "#4CAF50", 24, "left");
+
+    // Right aligned resources: Gold is furthest right, Diamond is to its left
     let goldText = DB.data.gold.toLocaleString();
+    let diamondText = (DB.data.diamonds || 0).toLocaleString();
+
     ctx.textAlign = "right";
+    // Draw Gold
     drawText(ctx, `💰 ${goldText}`, canvasWidth - 20, 32, "#FFD700", 24, "right");
+
+    // Measure Gold text to position Diamond correctly
+    let goldWidth = ctx.measureText(`💰 ${goldText}`).width;
+    // Draw Diamond (gap of 30px)
+    drawText(ctx, `💎 ${diamondText}`, canvasWidth - 20 - goldWidth - 30, 32, "#00BCD4", 24, "right");
+
     ctx.textAlign = "left";
 }
 
@@ -409,7 +425,7 @@ export function drawTeamDisplay(ctx, yPos, showLabels = false, canvasWidth, slot
 }
 
 // Helper function to calculate total stats with equipment bonuses
-function calculateTotalStats(hero, itemMap) {
+export function calculateTotalStats(hero, itemMap) {
     let stats = {
         hp: hero.hp,
         atk: hero.atk,
@@ -448,6 +464,11 @@ function calculateTotalStats(hero, itemMap) {
             }
         }
     }
+
+    stats.hp = Math.min(MAX_MAIN_STAT, stats.hp);
+    stats.atk = Math.min(MAX_MAIN_STAT, stats.atk);
+    stats.crit = Math.min(MAX_RATE_STAT, stats.crit);
+    stats.eva = Math.min(MAX_RATE_STAT, stats.eva);
 
     return stats;
 }
@@ -606,13 +627,147 @@ export function drawHeroCard(ctx, hero, x, y, w, h, isSelected, isTeam, isMerge,
 
             // Draw icon in gray with reduced opacity effect
             ctx.save();
-            ctx.globalAlpha = 0.1;
+            ctx.globalAlpha = 0.4; // Increased from 0.1 for better visibility
             drawText(ctx, typeIcon, bx + slotSize / 2, eqY + slotSize / 2 + 4, "#888", 16, "center");
             ctx.restore();
         }
     }
 
     if (isTeam) drawBadge(ctx, x + w - 15, y + 20, "E", "blue");
+
+    if (Enjine.Mouse.Clicked && Enjine.Mouse.X >= x && Enjine.Mouse.X <= x + w && Enjine.Mouse.Y >= y && Enjine.Mouse.Y <= y + h) {
+        Enjine.Mouse.Clicked = false;
+        if (callback) callback();
+    }
+}
+
+export function drawTowerCard(ctx, tower, x, y, w, h, isSelected, isDeployed, isMerge, callback) {
+    // Define colors based on star count
+    let starColors = {
+        1: { bg: "#1A1A1A", border: "#444" },
+        2: { bg: "#1E1E1E", border: "#555" },
+        3: { bg: "#222", border: "#666" },
+        4: { bg: "#2A2A2A", border: "#777" },
+        5: { bg: "#333", border: "#888" },
+        6: { bg: "#2D1F2D", border: "#9C27B0" },
+        7: { bg: "#2D1F2D", border: "#BA68C8" },
+        8: { bg: "#311B31", border: "#CE93D8" },
+        9: { bg: "#351D35", border: "#E1BEE7" },
+        10: { bg: "#3A203A", border: "#F3E5F5" }
+    };
+
+    let starColor = starColors[tower.stars] || starColors[1];
+    let bgColor = starColor.bg;
+    let borderColor = starColor.border;
+
+    if (isSelected) borderColor = "#FFD700";
+    if (isMerge) borderColor = "#0A0";
+    if (isDeployed && !isSelected) borderColor = "#FF6B00";
+
+    drawRoundedRect(ctx, x, y, w, h, 10, bgColor);
+
+    // Enhanced border
+    let lw = isSelected || isMerge ? 3 : (tower.stars >= 6 ? 2 : 1);
+
+    // Simple pulsing effect for 6+ stars
+    if (tower.stars >= 6 && !isSelected && !isMerge) {
+        if (!window.towerBorderPulse) window.towerBorderPulse = 0;
+        window.towerBorderPulse += 0.05;
+        if (window.towerBorderPulse > Math.PI * 2) window.towerBorderPulse = 0;
+        lw = 2 + Math.abs(Math.sin(window.towerBorderPulse)) * 1;
+    }
+
+    drawRoundedStroke(ctx, x, y, w, h, 10, borderColor, lw);
+
+    // Add subtle inner glow for 6+ stars
+    if (tower.stars >= 6) {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        drawRoundedStroke(ctx, x + 2, y + 2, w - 4, h - 4, 8, borderColor, 1);
+        ctx.restore();
+    }
+
+    // Tower icon - TOWER_SHAPES
+    const TOWER_SHAPES = ["🏚️", "🏠", "🏯", "🏰", "🗼", "🏙️"];
+    let shape = TOWER_SHAPES[Math.min(TOWER_SHAPES.length - 1, (tower.stars || 1) - 1)];
+    
+    // Top Section
+    drawText(ctx, shape, x + w / 2, y + 45, "white", 50, "center");
+    
+    // Tower type name
+    let typeInfo = Object.values(TOWER_TYPES).find(t => t.id === tower.type);
+    drawText(ctx, typeInfo ? typeInfo.name.toUpperCase() : "CHÒI", x + w / 2, y + 65, "#FF9800", 14, "center");
+
+    // Star display
+    let starIcon = tower.stars > 5 ? "🌟" : "⭐";
+    let starCount = tower.stars > 5 ? tower.stars - 5 : tower.stars;
+    let starStr = starIcon.repeat(starCount);
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "black";
+    ctx.font = "14px \"Noto Sans\", \"Noto Color Emoji\", sans-serif";
+    ctx.textAlign = "center";
+    ctx.strokeText(starStr, x + w / 2, y + 82);
+
+    let starTextColor = "yellow";
+    if (tower.stars > 5) {
+        if (!window.towerStarPulse) window.towerStarPulse = 0;
+        window.towerStarPulse += 0.03;
+        if (window.towerStarPulse > Math.PI * 2) window.towerStarPulse = 0;
+        let brightness = 0.7 + Math.abs(Math.sin(window.towerStarPulse)) * 0.3;
+        let r = Math.floor(255 * brightness);
+        let g = Math.floor(215 * brightness);
+        starTextColor = `rgb(${r}, ${g}, 0)`;
+    }
+    drawText(ctx, starStr, x + w / 2, y + 82, starTextColor, 14, "center");
+
+    drawText(ctx, `Lv: ${tower.level}`, x + w / 2, y + 98, "white", 12, "center");
+
+    // Stats area
+    drawRoundedRect(ctx, x + 6, y + 102, w - 12, 68, 6, "rgba(0,0,0,0.25)");
+
+    let stats = DB.getTowerStats(tower);
+    let embeddedStars = 0;
+    if (tower.embeddedHeroes && tower.embeddedHeroes.length) {
+        tower.embeddedHeroes.forEach(hid => {
+            if (!hid) return;
+            let hh = DB.data.heroes.find(h => h.id === hid);
+            if (hh) embeddedStars += (hh.stars || 0);
+        });
+    }
+    let bonusRate = embeddedStars / 100;
+    let baseStats = typeInfo ? typeInfo.baseStats : null;
+    let bonusHp = baseStats ? Math.round(baseStats.hp * bonusRate) : 0;
+    let bonusAtk = baseStats ? Math.round(baseStats.atk * bonusRate) : 0;
+    let bonusRange = baseStats ? Math.round(baseStats.range * bonusRate) : 0;
+    let bonusAtkSpd = baseStats ? Math.round(baseStats.atkSpd * bonusRate * 100) : 0;
+    let sx = x + 10, sy = y + 118, dy = 15;
+    let col2 = x + w / 2 + 5;
+    let valX1 = x + w / 2 - 5;
+    let valX2 = x + w - 10;
+
+    if (stats) {
+        drawText(ctx, "❤️", sx, sy, "#CCC", 11, "left");
+        drawText(ctx, `${Math.round(stats.hp)}`, valX1, sy, "#CCC", 11, "right");
+        if (bonusHp > 0) drawText(ctx, `(+${bonusHp})`, valX1 + 4, sy, "#FFD54F", 10, "left");
+
+        drawText(ctx, "⚔️", sx, sy + dy, "#CCC", 11, "left");
+        drawText(ctx, `${Math.round(stats.atk)}`, valX1, sy + dy, "#CCC", 11, "right");
+        if (bonusAtk > 0) drawText(ctx, `(+${bonusAtk})`, valX1 + 4, sy + dy, "#FFD54F", 10, "left");
+
+        drawText(ctx, "🎯", sx, sy + dy * 2, "#CCC", 11, "left");
+        drawText(ctx, `${Math.round(stats.range)}`, valX1, sy + dy * 2, "#CCC", 11, "right");
+        if (bonusRange > 0) drawText(ctx, `(+${bonusRange})`, valX1 + 4, sy + dy * 2, "#FFD54F", 10, "left");
+
+        drawText(ctx, "⚡", sx, sy + dy * 3, "#CCC", 11, "left");
+        drawText(ctx, `${Math.round(stats.atkSpd * 100)}%`, valX1, sy + dy * 3, "#CCC", 11, "right");
+        if (bonusAtkSpd > 0) drawText(ctx, `(+${bonusAtkSpd}%)`, valX1 + 4, sy + dy * 3, "#FFD54F", 10, "left");
+    }
+
+    // Badge for deployed tower
+    if (isDeployed) {
+        drawBadge(ctx, x + w - 15, y + 20, "⚔️", "orange");
+    }
 
     if (Enjine.Mouse.Clicked && Enjine.Mouse.X >= x && Enjine.Mouse.X <= x + w && Enjine.Mouse.Y >= y && Enjine.Mouse.Y <= y + h) {
         Enjine.Mouse.Clicked = false;

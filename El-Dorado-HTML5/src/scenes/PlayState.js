@@ -9,6 +9,7 @@ import {
     drawPlayerBase, drawEnemyBase, drawItemIcon, addToast
 } from '../utils/uiHelpers.js';
 import { StageSelectState } from './StageSelectState.js';
+import { NetworkSystem } from '../utils/network.js';
 
 export var PlayState = new Enjine.GameState();
 PlayState.level = 1;
@@ -199,9 +200,64 @@ PlayState.Enter = function () {
     this.bossSpawned = false; // Reset Boss Spawn Flag
 
     // Force Boss Spawn immediately (Start of level)
-    if (this.level % 20 === 0) {
+    if (this.level % 20 === 0 && !this.pvp?.enabled) {
         this.enemySpawnTimer = 999;
     }
+
+    // PvP Initialization
+    if (this.pvp?.enabled) {
+        this.showBoosterDialog = false; // Skip boosters in PvP
+        this.isHost = this.pvp.isHost;
+        this.opponentTeam = null;
+
+        if (this.isHost) {
+            // Host waits for client team info
+            NetworkSystem.onMessage((data) => {
+                if (data.type === "init") {
+                    this.opponentTeam = data.team;
+                }
+                if (data.type === "input") {
+                    this.handleOpponentInput(data);
+                }
+            });
+        } else {
+            // Client sends team info and waits for state
+            NetworkSystem.send({
+                type: "init",
+                team: {
+                    heroes: DB.data.heroes,
+                    team: DB.data.team
+                }
+            });
+
+            NetworkSystem.onMessage((data) => {
+                if (data.type === "state") {
+                    this.syncState(data.state);
+                }
+            });
+        }
+    }
+};
+
+PlayState.handleOpponentInput = function (data) {
+    if (data.key >= '1' && data.key <= '4') {
+        this.spawnTargetUnit(parseInt(data.key) - 1, 1);
+    }
+    if (data.key === 's' || data.key === 'S') {
+        this.fireTargetMissile(1);
+    }
+};
+
+PlayState.syncState = function (state) {
+    // Basic sync: units, bases, projectiles
+    this.units = state.units;
+    this.playerBase.hp = state.pBaseHp;
+    this.enemyBase.hp = state.eBaseHp;
+    this.projectiles = state.projectiles;
+    this.particles = state.particles;
+    this.mineral = state.mineral;
+    this.maxMineral = state.maxMineral;
+    this.mineralLevel = state.mineralLevel;
 };
 
 PlayState.Exit = function () {
@@ -360,7 +416,11 @@ PlayState.handleKeyPress = function (e) {
     // Hero Spawn Shortcuts (1-4)
     if (e.key >= '1' && e.key <= '4') {
         let heroIdx = parseInt(e.key) - 1;
-        this.spawnPlayerUnit(heroIdx);
+        if (this.pvp?.enabled && !this.isHost) {
+            NetworkSystem.send({ type: "input", key: e.key });
+        } else {
+            this.spawnPlayerUnit(heroIdx);
+        }
         return;
     }
 
@@ -484,6 +544,13 @@ PlayState.Draw = function (ctx) {
 
 PlayState.Update = function (dt) {
     if (this.gameOver || this.confirmExit || this.showBoosterDialog || this.resultData) return;
+
+    if (this.pvp?.enabled && !this.isHost) {
+        BackgroundSystem.Update(dt);
+        // Guest only updates background and camera (optional, or sync camera)
+        // Physics and units are synced from host
+        return;
+    }
 
     BackgroundSystem.Update(dt);
 
@@ -719,9 +786,27 @@ PlayState.Update = function (dt) {
             team: 1
         });
     }
+
+    // PvP State Sync (Host to Guest)
+    if (this.pvp?.enabled && this.isHost) {
+        NetworkSystem.send({
+            type: "state",
+            state: {
+                units: this.units,
+                pBaseHp: this.playerBase.hp,
+                eBaseHp: this.enemyBase.hp,
+                projectiles: this.projectiles,
+                particles: this.particles,
+                mineral: this.mineral,
+                maxMineral: this.maxMineral,
+                mineralLevel: this.mineralLevel
+            }
+        });
+    }
 };
 
 PlayState.spawnEnemy = function () {
+    if (this.pvp?.enabled) return;
     let allTypes = Object.values(CLASS_TYPES);
     // Unlock new enemies progressively: Start with 5, add 1 every level
     let availableCount = Math.min(allTypes.length, 5 + this.level);
@@ -863,6 +948,63 @@ PlayState.spawnEnemy = function () {
     }
 
     this.units.push(u);
+};
+
+PlayState.spawnTargetUnit = function (slotIdx, team) {
+    // Special logic for spawning opponent units in PvP
+    if (!this.opponentTeam) return;
+    let hId = this.opponentTeam.team[slotIdx];
+    if (!hId) return;
+    let hero = this.opponentTeam.heroes.find(h => h.id === hId);
+
+    // Scaling/Costs for PvP units? For now, assume same logic but for Team 1
+    // We'll skip mineral check for opponent for simplicity or implement opponent minerals
+
+    let typeInfo = Object.values(CLASS_TYPES).find(t => t.id === hero.type);
+
+    this.units.push({
+        x: this.enemyBase.x - 100, y: this.baseY,
+        team: 1, type: hero.type,
+        hp: hero.hp, maxHp: hero.hp,
+        atk: hero.atk,
+        baseAtk: hero.atk,
+        spd: hero.spd, range: hero.range,
+        atkSpd: hero.atkSpd,
+        baseAtkSpd: hero.atkSpd,
+        def: hero.def, crit: hero.crit, eva: hero.eva, regen: hero.regen,
+        cd: 0, state: 'move', w: 40, h: 40, dead: false,
+        projType: hero.projType, atkType: hero.atkType,
+        hitTimer: 0,
+        effect: typeInfo ? typeInfo.effect : "💥"
+    });
+};
+
+PlayState.fireTargetMissile = function (team) {
+    let sourceBase = team === 0 ? this.playerBase : this.enemyBase;
+    let targetTeam = team === 0 ? 1 : 0;
+    let targetX = team === 0 ? this.enemyBase.x : this.playerBase.x;
+
+    let minDistance = 99999;
+    this.units.forEach(u => {
+        if (u.team === targetTeam && !u.dead) {
+            let d = Math.abs(u.x - (team === 0 ? 0 : 2400)); // Simple focus logic
+            if (d < minDistance) {
+                minDistance = d;
+                targetX = u.x;
+            }
+        }
+    });
+
+    this.projectiles.push({
+        type: 3,
+        startX: sourceBase.x + (team === 0 ? 100 : 0),
+        startY: this.baseY - 150,
+        targetX: targetX,
+        targetY: this.baseY,
+        x: sourceBase.x, y: this.baseY - 150, timer: 0, speed: 1.0,
+        dmg: 500, // Fixed PvP missile dmg for now
+        team: team
+    });
 };
 
 PlayState.spawnPlayerUnit = function (slotIdx) {

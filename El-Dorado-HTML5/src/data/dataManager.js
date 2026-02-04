@@ -114,14 +114,27 @@ export const CLASS_TYPES = {
     POLICE: { id: 103, name: "Cảnh Sát", color: "#00007F", desc: "Bắt trói", icon: "👮", category: "human", effect: "🚓" },
 };
 
+// --- TOWER TYPES (TOWER DEFENSE) ---
+export const TOWER_TYPES = {
+    ARROW: { id: 0, name: "Chòi Cung", icon: "🏹", color: "#8BC34A", baseStats: { atk: 30, range: 180, atkSpd: 1.2, hp: 400, projType: 1 } },
+    CANNON: { id: 1, name: "Chòi Pháo", icon: "💣", color: "#FF9800", baseStats: { atk: 60, range: 140, atkSpd: 0.7, hp: 550, projType: 1 } },
+    MAGIC: { id: 2, name: "Chòi Pháp", icon: "🔮", color: "#9C27B0", baseStats: { atk: 40, range: 220, atkSpd: 1.0, hp: 450, projType: 5 } },
+    ICE: { id: 3, name: "Chòi Băng", icon: "❄️", color: "#03A9F4", baseStats: { atk: 25, range: 200, atkSpd: 0.9, hp: 500, projType: 5 } }
+};
+
+// --- HERO LEVEL & STAT LIMITS ---
+export const MAX_HERO_LEVEL = 1000;
+export const MAX_MAIN_STAT = 999999999; // HP/ATK ceiling
+export const MAX_RATE_STAT = 98; // % cap for crit/eva
+
 
 // --- CENTRALIZED CLASS STATS CONFIGURATION ---
 (function () {
     const FLYING_IDS = [0, 2, 16, 39, 40, 41, 42, 43, 48, 64, 65, 77, 80, 81, 88, 89];
 
     function getRawStats(type, stars) {
-        let hp = 100 + stars * 50, atk = 10 + stars * 5, spd = 2, atkSpd = 1.0, cost = 100 + stars * 20;
-        let atkType = 'melee', projType = 1, range = 60, def = 0, crit = 5, eva = 0, regen = 0;
+        let hp = 10 + stars, atk = 10 + stars / 5, spd = 0.05, atkSpd = 0.01, cost = 100 + stars * 20;
+        let atkType = 'melee', projType = 1, range = 60, def = 1, crit = 1, eva = 1, regen = 0.01;
 
         const id = type.id;
         if (id === 0) { atk *= 2; cost *= 1.2; atkType = 'range'; range = 400; projType = 0; crit += 5; }
@@ -252,7 +265,8 @@ export const CLASS_TYPES = {
             cost: Math.round(s2.cost - s1.cost)
         };
 
-        t.levelRate = { hp: 1.05, atk: 1.05, def: 1.02, regen: 1.05, spd: 1, atkSpd: 1, crit: 1, eva: 1 };
+        // Stronger level scaling (still capped by MAX_MAIN_STAT)
+        t.levelRate = { hp: 1.03, atk: 1.028, def: 1.02, regen: 1.02, spd: 1.006, atkSpd: 1.006, crit: 1.01, eva: 1.01 };
 
         let dmgType = 'single';
         if (t.id === 0 || t.id === 16) dmgType = 'pierce';
@@ -330,6 +344,164 @@ export class DataManager {
         this.load();
     }
 
+    rebuildHeroStats(hero) {
+        let typeInfo = Object.values(CLASS_TYPES).find(t => t.id === hero.type);
+        if (!typeInfo) return;
+
+        const s = typeInfo.baseStats;
+        const g = typeInfo.growth;
+        const r = typeInfo.levelRate || { hp: 1.012, atk: 1.011, def: 1.009, regen: 1.012, spd: 1.002, atkSpd: 1.002, crit: 1.001, eva: 1.001 };
+        const st = (hero.stars || 1) - 1;
+
+        let stats = {
+            hp: s.hp + st * g.hp,
+            atk: s.atk + st * g.atk,
+            def: s.def + st * g.def,
+            regen: s.regen + st * g.regen,
+            spd: parseFloat((s.spd + st * g.spd).toFixed(2)),
+            atkSpd: parseFloat((s.atkSpd + st * g.atkSpd).toFixed(2)),
+            crit: s.crit,
+            eva: s.eva
+        };
+
+        let lvl = Math.max(1, hero.level || 1);
+        if (lvl > 1) {
+            const lv = lvl - 1;
+            stats.hp = Math.min(MAX_MAIN_STAT, Math.floor(stats.hp * Math.pow(r.hp, lv)));
+            stats.atk = Math.min(MAX_MAIN_STAT, Math.floor(stats.atk * Math.pow(r.atk, lv)));
+            stats.def = Math.floor(stats.def * Math.pow(r.def, lv));
+            stats.regen = Math.floor(stats.regen * Math.pow(r.regen, lv));
+            if (r.spd && r.spd !== 1) stats.spd = parseFloat((stats.spd * Math.pow(r.spd, lv)).toFixed(2));
+            if (r.atkSpd && r.atkSpd !== 1) stats.atkSpd = parseFloat((stats.atkSpd * Math.pow(r.atkSpd, lv)).toFixed(2));
+            if (r.crit && r.crit !== 1) stats.crit = Math.min(MAX_RATE_STAT, Math.floor(stats.crit * Math.pow(r.crit, lv)));
+            if (r.eva && r.eva !== 1) stats.eva = Math.min(MAX_RATE_STAT, Math.floor(stats.eva * Math.pow(r.eva, lv)));
+        }
+
+        hero.hp = stats.hp;
+        hero.atk = stats.atk;
+        hero.def = stats.def;
+        hero.regen = stats.regen;
+        hero.spd = stats.spd;
+        hero.atkSpd = stats.atkSpd;
+        hero.crit = stats.crit;
+        hero.eva = stats.eva;
+
+        hero.cost = Math.round(s.cost + st * g.cost);
+        hero.range = typeInfo.combat.range;
+        hero.atkType = typeInfo.combat.type;
+        hero.projType = typeInfo.combat.projType;
+    }
+
+    getTowerStats(tower) {
+        let typeInfo = Object.values(TOWER_TYPES).find(t => t.id === tower.type);
+        if (!typeInfo) return null;
+
+        let stars = Math.max(1, tower.stars || 1);
+        let level = Math.max(1, tower.level || 1);
+
+        let starMult = 1 + (stars - 1) * 0.25;
+        let levelMult = 1 + (level - 1) * 0.02;
+
+        return {
+            atk: Math.round(typeInfo.baseStats.atk * starMult * levelMult),
+            range: Math.round(typeInfo.baseStats.range * (1 + (stars - 1) * 0.05)),
+            atkSpd: parseFloat((typeInfo.baseStats.atkSpd * (1 + (level - 1) * 0.005)).toFixed(2)),
+            hp: Math.round(typeInfo.baseStats.hp * starMult * levelMult),
+            projType: typeInfo.baseStats.projType || 1
+        };
+    }
+
+    createTower(starOverride = null, allowedTypes = null, autoSave = true) {
+        let typeKeys = Object.keys(TOWER_TYPES);
+        if (allowedTypes && allowedTypes.length > 0) {
+            typeKeys = typeKeys.filter(k => allowedTypes.includes(TOWER_TYPES[k].id));
+        }
+        let typeKey = typeKeys[Math.floor(Math.random() * typeKeys.length)];
+        let typeInfo = TOWER_TYPES[typeKey];
+
+        let stars = starOverride;
+        if (!stars) {
+            let r = Math.random();
+            if (r < 0.55) stars = 1;
+            else if (r < 0.80) stars = 2;
+            else if (r < 0.93) stars = 3;
+            else if (r < 0.98) stars = 4;
+            else stars = 5;
+        }
+
+        let tower = {
+            id: Date.now() + Math.random(),
+            type: typeInfo.id,
+            stars: stars,
+            maxStars: 5,
+            level: 1,
+            exp: 0
+        };
+
+        this.data.towers.push(tower);
+        if (autoSave) this.save();
+        return tower;
+    }
+
+    addTowerExp(tower, amount) {
+        let leveledUp = false;
+        tower.exp += amount;
+        let expReq = tower.level * 50;
+
+        while (tower.exp >= expReq && tower.level < 100) {
+            tower.exp -= expReq;
+            tower.level++;
+            expReq = tower.level * 50;
+            leveledUp = true;
+        }
+        return leveledUp;
+    }
+
+    mergeTowers(mainTowerId, materialIds) {
+        let main = this.data.towers.find(t => t.id === mainTowerId);
+        if (!main) return { success: false, msg: "Không tìm thấy chòi canh!" };
+        if (!materialIds || materialIds.length === 0) return { success: false, msg: "Chưa chọn nguyên liệu!" };
+
+        let totalExp = 0;
+        materialIds.forEach(mId => {
+            let idx = this.data.towers.findIndex(t => t.id === mId);
+            if (idx !== -1 && mId !== main.id) {
+                let mat = this.data.towers[idx];
+                totalExp += (mat.stars || 1) * Math.max(1, mat.level) * 50;
+                this.data.towers.splice(idx, 1);
+            }
+        });
+
+        if (totalExp <= 0) return { success: false, msg: "Nguyên liệu không hợp lệ!" };
+
+        this.addTowerExp(main, totalExp);
+
+        // Clear team slots if removed
+        let towerIds = new Set(this.data.towers.map(t => t.id));
+        this.data.towerTeam = this.data.towerTeam.map(id => (id && towerIds.has(id)) ? id : null);
+
+        this.save();
+        return { success: true, msg: `Đã nhận ${totalExp} EXP cho chòi!` };
+    }
+
+    upgradeTowerStar(towerId) {
+        let tower = this.data.towers.find(t => t.id === towerId);
+        if (!tower) return { success: false, msg: "Không tìm thấy chòi canh!" };
+
+        if (tower.stars >= tower.maxStars) return { success: false, msg: "Đã đạt sao tối đa!" };
+        if (tower.level < 100) return { success: false, msg: "Chưa đạt Lv.100!" };
+
+        let cost = 100000;
+        if (this.data.gold < cost) return { success: false, msg: "Không đủ vàng!" };
+
+        this.data.gold -= cost;
+        tower.stars++;
+        tower.level = 1;
+        tower.exp = 0;
+        this.save();
+        return { success: true, msg: `Nâng lên ${tower.stars} sao thành công!` };
+    }
+
     getDefaultData() {
         return {
             gold: 500000,
@@ -337,6 +509,7 @@ export class DataManager {
             exp: 0,
             heroes: [],
             team: [null, null, null, null],
+            diamonds: 0,
             baseStats: { hpLvl: 1, defLvl: 1, atkLvl: 1, minMaxLvl: 1, minRateLvl: 1 },
             limitLevels: { unit: 0, hero: 0, item: 0 }, // New Limits Levels
             limitUnits: 10, // Max deployable in stage (10 -> 20)
@@ -344,12 +517,22 @@ export class DataManager {
             limitItems: 30, // Item bag (30 -> 100)
             maxStage: 1,
             medals: [],
-            medals: [],
             inventory: [], // Store items here
             upgradeBonus: {}, // { "SWORD_E": 10, "SHIELD_D": 5 ... } - Cumulative failure bonus %
             spells: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 }, // 0: Locked. 1+: Active Level
             spellSlots: [0, 1, 2, 3, 4, 5], // Default Key Bindings: 5->0, 6->1, 7->2, 8->3, 9->4, 0->5
-            config: { expMultiplier: 1.2 }
+            config: { expMultiplier: 1.2 },
+
+            towers: [],
+            towerTeam: [null, null, null, null],
+            limitTowers: 100,
+            tdMaxStage: 1,
+            tdMedals: [],
+            // Tower Defense star tracking (global bank + per-stage stars, and awarded bonus rows)
+            tdStars: [],
+            tdStarBank: 0,
+            tdStarBonuses: 0,
+            tdStarHistory: [] // track all stars earned (for bonus calculation)
         };
     }
 
@@ -434,6 +617,7 @@ export class DataManager {
                 if (!this.data.inventory) this.data.inventory = [];
                 if (!this.data.upgradeBonus) this.data.upgradeBonus = {};
                 if (!this.data.spells) this.data.spells = { 0: 0, 1: 0, 2: 0, 3: 0 };
+                if (this.data.diamonds === undefined) this.data.diamonds = 0;
 
                 // Polyfill limit levels if missing (handled by spread above? No, parsed overwrites def. If parsed lacks it, def is used. OK. 
                 // But if parsed has old structure? Old structure didn't have limitLevels. 
@@ -445,19 +629,59 @@ export class DataManager {
                     if (!h.equipments) h.equipments = { 0: null, 1: null, 2: null, 3: null };
                     // Fix missing maxLevel for old heroes
                     if (!h.maxLevel) h.maxLevel = 20 + (h.stars - 1) * 10;
+                    if (h.maxLevel > MAX_HERO_LEVEL) h.maxLevel = MAX_HERO_LEVEL;
+                    if (h.level > h.maxLevel) h.level = h.maxLevel;
+                    this.rebuildHeroStats(h);
                 });
 
                 if (this.data.medals.length < 1000) {
                     for (let i = this.data.medals.length; i < 1000; i++) this.data.medals.push(0);
                 }
+
+                if (!this.data.tdStars) this.data.tdStars = [];
+                if (this.data.tdStars.length < 1000) {
+                    for (let i = this.data.tdStars.length; i < 1000; i++) this.data.tdStars.push(0);
+                }
+                if (this.data.tdStarBank === undefined) this.data.tdStarBank = 0;
+                if (this.data.tdStarBonuses === undefined) this.data.tdStarBonuses = 0;
+                if (!this.data.tdStarHistory) this.data.tdStarHistory = [];
+
+
+                this.ensureTowerDefaults();
             } catch (e) { this.reset(); }
         } else {
             this.reset();
         }
     }
 
+    ensureTowerDefaults() {
+        if (!this.data.towers) this.data.towers = [];
+        if (!this.data.towerTeam) this.data.towerTeam = [null, null, null, null];
+        if (!this.data.limitTowers) this.data.limitTowers = 100;
+        if (!this.data.tdMedals) this.data.tdMedals = [];
+
+        if (this.data.tdMedals.length < 1000) {
+            for (let i = this.data.tdMedals.length; i < 1000; i++) this.data.tdMedals.push(0);
+        }
+
+        if (this.data.towers.length === 0) {
+            for (let i = 0; i < 4; i++) this.createTower(1, [0], false);
+        }
+
+        // Ensure team slots are valid
+        let towerIds = new Set(this.data.towers.map(t => t.id));
+        this.data.towerTeam = this.data.towerTeam.map(id => (id && towerIds.has(id)) ? id : null);
+
+        if (!this.data.towerTeam.some(id => id) && this.data.towers.length > 0) {
+            for (let i = 0; i < 4; i++) {
+                this.data.towerTeam[i] = this.data.towers[i] ? this.data.towers[i].id : null;
+            }
+        }
+    }
+
     reset() {
         this.data = this.getDefaultData();
+        this.ensureTowerDefaults();
         this.save();
     }
 
@@ -499,7 +723,7 @@ export class DataManager {
             stars: stars,
             maxStars: 10,
             level: 1,
-            maxLevel: 20 + (stars - 1) * 10,
+            maxLevel: Math.min(MAX_HERO_LEVEL, 20 + (stars - 1) * 10),
             exp: 0,
 
             hp: Math.round(s.hp + st * g.hp),
@@ -531,11 +755,14 @@ export class DataManager {
     }
 
     gachaBulk(type, count, costOverride = null, filters = null) {
-        let cost = (costOverride != null) ? costOverride : count * 1000;
+        let baseCost = type === 'tower' ? 100000 : 1000;
+        let cost = (costOverride != null) ? costOverride : count * baseCost;
         if (this.data.gold < cost) return { error: "Không đủ vàng!" };
 
         if (type === 'hero') {
             if (this.data.heroes.length + count > this.data.limitHeroes) return { error: "Kho tướng không đủ chỗ!" };
+        } else if (type === 'tower') {
+            if (this.data.towers.length + count > this.data.limitTowers) return { error: "Kho chòi canh không đủ chỗ!" };
         } else {
             if (this.data.inventory.length + count > this.data.limitItems) return { error: "Kho đồ không đủ chỗ!" };
         }
@@ -547,7 +774,10 @@ export class DataManager {
                 let allowed = filters ? filters.classes : null;
                 items.push(this.createHero(null, allowed, false));
             }
-            else {
+            else if (type === 'tower') {
+                let allowed = filters ? filters.types : null;
+                items.push(this.createTower(null, allowed, false));
+            } else {
                 let allowed = filters ? filters.types : null;
                 items.push(this.createItem(null, null, allowed, false));
             }
@@ -578,6 +808,8 @@ export class DataManager {
 
                 if (mat.type === main.type) {
                     main.maxLevel += 5;
+                    if (main.maxLevel > MAX_HERO_LEVEL) main.maxLevel = MAX_HERO_LEVEL;
+                    if (main.level > main.maxLevel) main.level = main.maxLevel;
                 } else {
                     let expGain = mat.stars * mat.level * 1000 * 100; // Increased 100x
                     this.addHeroExp(main, expGain);
@@ -614,15 +846,17 @@ export class DataManager {
         let expReq = hero.level * 100;
 
         let typeInfo = Object.values(CLASS_TYPES).find(t => t.id === hero.type);
-        const rate = typeInfo ? typeInfo.levelRate : { hp: 1.05, atk: 1.05, def: 1.02, regen: 1.05, spd: 1, atkSpd: 1 };
+        const rate = typeInfo ? typeInfo.levelRate : { hp: 1.012, atk: 1.011, def: 1.009, regen: 1.012, spd: 1.002, atkSpd: 1.002, crit: 1.001, eva: 1.001 };
 
         while (hero.exp >= expReq && hero.level < hero.maxLevel) {
             hero.exp -= expReq;
             hero.level++;
-            hero.hp = Math.floor(hero.hp * rate.hp);
-            hero.atk = Math.floor(hero.atk * rate.atk);
+            hero.hp = Math.min(MAX_MAIN_STAT, Math.floor(hero.hp * rate.hp));
+            hero.atk = Math.min(MAX_MAIN_STAT, Math.floor(hero.atk * rate.atk));
             hero.def = Math.floor(hero.def * rate.def);
             hero.regen = Math.floor(hero.regen * rate.regen);
+            hero.crit = Math.min(MAX_RATE_STAT, Math.floor(hero.crit * (rate.crit || 1)));
+            hero.eva = Math.min(MAX_RATE_STAT, Math.floor(hero.eva * (rate.eva || 1)));
             if (rate.spd && rate.spd !== 1) hero.spd = parseFloat((hero.spd * rate.spd).toFixed(2));
             if (rate.atkSpd && rate.atkSpd !== 1) hero.atkSpd = parseFloat((hero.atkSpd * rate.atkSpd).toFixed(2));
 
@@ -645,16 +879,12 @@ export class DataManager {
         hero.stars++;
 
         if (hero.stars >= 9) hero.maxLevel += 5; else hero.maxLevel += 10;
+        hero.maxLevel = Math.min(hero.maxLevel, MAX_HERO_LEVEL);
 
         let typeInfo = Object.values(CLASS_TYPES).find(t => t.id === hero.type);
         const growth = typeInfo ? typeInfo.growth : { hp: 50, atk: 5, def: 0, regen: 0, spd: 0, atkSpd: 0 };
 
-        hero.hp = Math.round(hero.hp + growth.hp);
-        hero.atk = Math.round(hero.atk + growth.atk);
-        hero.def = Math.round(hero.def + growth.def);
-        hero.regen = Math.round(hero.regen + growth.regen);
-        if (growth.spd) hero.spd = parseFloat((hero.spd + growth.spd).toFixed(2));
-        if (growth.atkSpd) hero.atkSpd = parseFloat((hero.atkSpd + growth.atkSpd).toFixed(2));
+        this.rebuildHeroStats(hero);
 
         this.save();
         return { success: true, msg: `Nâng lên ${hero.stars} sao thành công!` };

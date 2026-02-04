@@ -1,0 +1,132 @@
+:root {
+    --pixel-font: 'Noto Sans', sans-serif;
+    --emoji-font: 'Noto Color Emoji', sans-serif;
+    --ui-font: 'Noto Sans', sans-serif;
+    --color-bg: #2c3e50;
+}
+
+body {
+    background-color: var(--color-bg);
+    color: white;
+    font-family: var(--ui-font);
+    overflow: hidden;
+    user-select: none;
+}
+
+.pixel-font {
+    font-family: var(--pixel-font);
+    font-size: 1.3rem;
+    line-height: 1.1;
+}
+
+.game-icon {
+    font-family: var(--emoji-font);
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2c3e50;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #7f8c8d;
+    border-radius: 4px;
+}
+
+#game-canvas {
+    image-rendering: pixelated;
+    /* Giữ pixel sắc nét */
+    cursor: crosshair;
+}
+
+.panel {
+    background: rgba(52, 73, 94, 0.98);
+    border: 2px solid #7f8c8d;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.btn-pixel {
+    font-family: var(--pixel-font);
+    font-size: 18px;
+    padding: 8px 12px;
+    border: 2px solid #bdc3c7;
+    background: #2980b9;
+    color: white;
+    cursor: pointer;
+    transition: all 0.1s;
+    text-transform: uppercase;
+    box-shadow: 0 4px 0 #1a5276;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.btn-pixel:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 #1a5276;
+}
+
+.btn-pixel:disabled {
+    background: #7f8c8d;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: translateY(2px);
+    opacity: 0.7;
+}
+
+.btn-close {
+    background: #e74c3c;
+    box-shadow: 0 4px 0 #c0392b;
+    border-color: #c0392b;
+}
+
+.btn-close:active {
+    box-shadow: 0 0 0 #c0392b;
+}
+
+.btn-save {
+    background: #8e44ad;
+    border-color: #9b59b6;
+    box-shadow: 0 4px 0 #6c3483;
+}
+
+.btn-save:active {
+    box-shadow: 0 0 0 #6c3483;
+}
+
+.notif-item {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.float-anim {
+    animation: floatUp 1s ease-out forwards;
+}
+
+@keyframes floatUp {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+}

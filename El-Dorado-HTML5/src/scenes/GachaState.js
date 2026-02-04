@@ -3,13 +3,13 @@
  */
 import { Enjine } from '../engine/core.js';
 import { BackgroundSystem } from '../engine/background.js';
-import { GAME, DB, CLASS_TYPES, ITEM_TYPES } from '../context.js';
+import { GAME, DB, CLASS_TYPES, ITEM_TYPES, TOWER_TYPES } from '../context.js';
 import { drawGlobalHeader, drawButton, drawText, drawHeroCard, drawItemIcon, drawRect, drawRoundedRect, addToast, drawToasts } from '../utils/uiHelpers.js';
 import { MainMenuState } from './MainMenuState.js';
 
 export var GachaState = new Enjine.GameState();
 
-GachaState.activeTab = "hero"; // 'hero' or 'item'
+GachaState.activeTab = "hero"; // 'hero' | 'tower' | 'item'
 GachaState.results = [];
 
 GachaState.Enter = function () {
@@ -32,6 +32,28 @@ GachaState.Draw = function (ctx) {
 
     drawButton(ctx, "❮ Về Menu", 10, 70, 100, 30, "#555", () => GAME.ChangeState(MainMenuState));
 
+    const drawTowerCard = (tower, x, y, w, h) => {
+        let typeInfo = Object.values(TOWER_TYPES).find(t => t.id === tower.type) || { name: "???", icon: "🏰", color: "#666" };
+        let stats = DB.getTowerStats(tower);
+        let shapes = ["🏚️", "🏠", "🏯", "🏰", "🗼", "🏙️"];
+        let shape = shapes[Math.min(shapes.length - 1, (tower.stars || 1) - 1)];
+
+        drawRoundedRect(ctx, x, y, w, h, 10, typeInfo.color);
+        drawRect(ctx, x + 5, y + 5, w - 10, h - 10, "rgba(0,0,0,0.5)");
+
+        drawText(ctx, shape, x + w / 2, y + 45, "white", 40, "center");
+        drawText(ctx, typeInfo.name, x + w / 2, y + 85, "white", 14, "center");
+
+        let starStr = "⭐".repeat(tower.stars || 1);
+        drawText(ctx, starStr, x + w / 2, y + 115, "yellow", 14, "center");
+        drawText(ctx, `Lv.${tower.level}`, x + w / 2, y + 140, "cyan", 14, "center");
+
+        if (stats) {
+            drawText(ctx, `ATK ${stats.atk}`, x + w / 2, y + 165, "white", 12, "center");
+            drawText(ctx, `R ${stats.range} / SPD ${stats.atkSpd}`, x + w / 2, y + 185, "white", 11, "center");
+        }
+    };
+
     // --- LEFT PANE (Controls) ---
     // Width ~ 350px (Increased from 300)
     let paneW = 350;
@@ -41,50 +63,61 @@ GachaState.Draw = function (ctx) {
     drawRoundedRect(ctx, paneX, paneY, paneW, 500, 10, "rgba(0,0,0,0.5)");
 
     // Tabs
-    let tabW = paneW / 2;
+    let tabW = paneW / 3;
     drawButton(ctx, "TƯỚNG", paneX, paneY, tabW, 50, this.activeTab === "hero" ? "#E91E63" : "#333", () => {
         this.activeTab = "hero";
         this.results = [];
-    }, "white", 20);
-    drawButton(ctx, "TRANG BỊ", paneX + tabW, paneY, tabW, 50, this.activeTab === "item" ? "#673AB7" : "#333", () => {
+    }, "white", 18);
+    drawButton(ctx, "CHÒI", paneX + tabW, paneY, tabW, 50, this.activeTab === "tower" ? "#4CAF50" : "#333", () => {
+        this.activeTab = "tower";
+        this.results = [];
+    }, "white", 18);
+    drawButton(ctx, "TRANG BỊ", paneX + tabW * 2, paneY, tabW, 50, this.activeTab === "item" ? "#673AB7" : "#333", () => {
         this.activeTab = "item";
         this.results = [];
-    }, "white", 20);
+    }, "white", 18);
 
     // Gacha Actions
     let actionY = paneY + 100;
-    let cost1 = 1000;
-    let cost6 = 6000;
+    let cost1 = this.activeTab === "tower" ? 100000 : 10000;
+    let cost6 = this.activeTab === "tower" ? 500000 : 50000;
 
-    let color = this.activeTab === "hero" ? "#E91E63" : "#673AB7";
+    let color = this.activeTab === "hero" ? "#E91E63" : (this.activeTab === "tower" ? "#4CAF50" : "#673AB7");
+    let title = this.activeTab === "hero" ? "QUAY TƯỚNG" : (this.activeTab === "tower" ? "QUAY CHÒI CANH" : "QUAY TRANG BỊ");
 
-    drawText(ctx, this.activeTab === "hero" ? "QUAY TƯỚNG" : "QUAY TRANG BỊ", paneX + paneW / 2, actionY - 20, "white", 24, "center");
+    drawText(ctx, title, paneX + paneW / 2, actionY - 20, "white", 24, "center");
 
     // 1x Button
-    drawButton(ctx, `QUAY 1 ( 10k )`, paneX + 25, actionY, 300, 60, color, () => {
-        this.doGacha(1, 10000);
+    drawButton(ctx, `QUAY 1 ( ${Math.floor(cost1 / 1000)}k )`, paneX + 25, actionY, 300, 60, color, () => {
+        this.doGacha(1, cost1);
     }, "white", 20);
 
     // 6x Button
-    drawButton(ctx, `QUAY 6 ( 50k )`, paneX + 25, actionY + 70, 300, 60, color, () => {
-        this.doGacha(6, 50000);
+    drawButton(ctx, `QUAY 6 ( ${Math.floor(cost6 / 1000)}k )`, paneX + 25, actionY + 70, 300, 60, color, () => {
+        this.doGacha(6, cost6);
     }, "yellow", 20);
 
-    // Filter Gacha Button
-    let filterText = this.activeTab === "hero" ? "QUAY HỆ (100k)" : "QUAY LOẠI (100k)";
-    drawButton(ctx, filterText, paneX + 25, actionY + 140, 300, 60, "#FF5722", () => {
-        this.selectionMode = true;
-        this.scrollY = 0;
-        // Load saved selection
-        if (this.activeTab === "hero") this.selectedIds = [...this.savedHeroIds];
-        else this.selectedIds = [...this.savedItemIds];
-    }, "white", 20);
+    // Filter Gacha Button (hero/item only)
+    if (this.activeTab !== "tower") {
+        let filterText = this.activeTab === "hero" ? "QUAY HỆ (100k)" : "QUAY LOẠI (100k)";
+        drawButton(ctx, filterText, paneX + 25, actionY + 140, 300, 60, "#FF5722", () => {
+            this.selectionMode = true;
+            this.scrollY = 0;
+            // Load saved selection
+            if (this.activeTab === "hero") this.selectedIds = [...this.savedHeroIds];
+            else this.selectedIds = [...this.savedItemIds];
+        }, "white", 20);
+    }
 
     drawText(ctx, "Tỉ lệ:", paneX + 20, actionY + 280, "#AAA", 16, "left");
     if (this.activeTab === "hero") {
         drawText(ctx, "1-2⭐: Common", paneX + 20, actionY + 310, "white", 14, "left");
         drawText(ctx, "3-5⭐: Rare", paneX + 20, actionY + 330, "cyan", 14, "left");
         drawText(ctx, "6-8⭐: Legend", paneX + 20, actionY + 350, "orange", 14, "left");
+    } else if (this.activeTab === "tower") {
+        drawText(ctx, "1-2⭐: Common", paneX + 20, actionY + 310, "white", 14, "left");
+        drawText(ctx, "3-4⭐: Rare", paneX + 20, actionY + 330, "cyan", 14, "left");
+        drawText(ctx, "5⭐: Legend", paneX + 20, actionY + 350, "orange", 14, "left");
     } else {
         drawText(ctx, "F-D: Common", paneX + 20, actionY + 310, "white", 14, "left");
         drawText(ctx, "C-A: Rare", paneX + 20, actionY + 330, "cyan", 14, "left");
@@ -92,8 +125,8 @@ GachaState.Draw = function (ctx) {
     }
 
     // Limits
-    let cur = this.activeTab === "hero" ? DB.data.heroes.length : DB.data.inventory.length;
-    let max = this.activeTab === "hero" ? DB.data.limitHeroes : DB.data.limitItems;
+    let cur = this.activeTab === "hero" ? DB.data.heroes.length : (this.activeTab === "tower" ? DB.data.towers.length : DB.data.inventory.length);
+    let max = this.activeTab === "hero" ? DB.data.limitHeroes : (this.activeTab === "tower" ? DB.data.limitTowers : DB.data.limitItems);
     drawText(ctx, `Kho: ${cur} / ${max}`, paneX + paneW / 2, paneY + 350, cur >= max ? "red" : "lime", 18, "center");
 
 
@@ -134,6 +167,9 @@ GachaState.Draw = function (ctx) {
                 drawHeroCard(ctx, res.data, cx, cy, cardW, cardH, false, false, false, null);
                 // New tag?
                 drawText(ctx, "NEW", cx + 80, cy - 10, "yellow", 16, "center");
+            } else if (res.type === 'tower') {
+                drawTowerCard(res.data, cx, cy, cardW, cardH);
+                drawText(ctx, "NEW", cx + cardW / 2, cy - 10, "yellow", 16, "center");
             } else {
                 // Draw Item
                 // Mini card style for item
@@ -166,7 +202,7 @@ GachaState.Draw = function (ctx) {
 
     drawToasts(ctx);
 
-    if (this.selectionMode) {
+    if (this.selectionMode && this.activeTab !== "tower") {
         // Overlay
         drawRect(ctx, 0, 0, GAME.Canvas.Width, GAME.Canvas.Height, "rgba(0,0,0,0.8)");
 
