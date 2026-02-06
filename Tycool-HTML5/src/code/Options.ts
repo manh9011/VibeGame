@@ -43,41 +43,88 @@ export interface Cost {
     stone?: number;
 }
 
-export interface BuildingDef {
-    id: string;
-    name: string;
-    icon: string;
+// Config for Building Levels
+export interface BuildingLevel {
+    level: number;
+    spriteIndex: number;
     cost: Cost;
-    desc: string;
-    type: string;
+    upgradeTime: number; // Seconds
+    desc?: string; // Optional override description
     income?: number;
-    capacity?: number;
-    effect?: string;
-    resource?: string;
-    amount?: number;
+    capacity?: number; // Pop capacity
     fame?: number;
-    size?: number;
-    spriteIndex?: number;
+    resource?: string; // resource type produced
+    amount?: number; // amount produced
+    effect?: string; // special effect code
 }
 
-export const BUILDINGS_DB: Record<string, BuildingDef> = {
-    house: { id: 'house', name: 'Nhà Dân', icon: '🏠', spriteIndex: 11, cost: { gold: 100, wood: 20 }, desc: '+2 Vàng/ngày, +5 Dân', type: 'economy', income: 2, capacity: 5 },
-    tavern: { id: 'tavern', name: 'Quán Rượu', icon: '🍺', spriteIndex: 19, cost: { gold: 300, wood: 100, stone: 20 }, desc: 'Nơi thuê Anh Hùng', type: 'service', effect: 'recruit', size: 2 },
-    blacksmith: { id: 'blacksmith', name: 'Lò Rèn', icon: '⚒️', spriteIndex: 12, cost: { gold: 500, wood: 150, stone: 100 }, desc: 'Sản xuất vũ khí', type: 'craft', effect: 'equip', size: 2 },
-    market: { id: 'market', name: 'Chợ', icon: '🎪', spriteIndex: 7, cost: { gold: 800, wood: 300 }, desc: 'Giao thương tài nguyên', type: 'economy', effect: 'trade', size: 2 },
-    woodcutter: { id: 'woodcutter', name: 'Trại Gỗ', icon: '🪓', spriteIndex: 10, cost: { gold: 150 }, desc: '+5 Gỗ/ngày. Tự động thu hoạch.', type: 'resource', resource: 'wood', amount: 5, size: 2 },
-    quarry: { id: 'quarry', name: 'Mỏ Đá', icon: '⛏️', spriteIndex: 21, cost: { gold: 200, wood: 50 }, desc: '+3 Đá/ngày. Tự động thu hoạch.', type: 'resource', resource: 'stone', amount: 3, size: 2 },
-    decoration: { id: 'decoration', name: 'Đài Phun Nước', icon: '⛲', spriteIndex: 13, cost: { gold: 100, stone: 50 }, desc: '+10 Danh tiếng', type: 'fame', fame: 10 }
+export interface BuildingConfig {
+    id: string;
+    name: string;
+    type: string;
+    size?: number;
+    maxCount?: number;
+    levels: BuildingLevel[];
+}
+
+export const BUILDINGS_DB: Record<string, BuildingConfig> = {
+    house: {
+        id: 'house', name: 'Nhà Dân', type: 'economy', maxCount: 20,
+        levels: [
+            { level: 1, spriteIndex: 18, cost: { gold: 100, wood: 20 }, upgradeTime: 0, desc: '+2 Vàng/ngày, +5 Dân', income: 2, capacity: 5 },
+            { level: 2, spriteIndex: 19, cost: { gold: 200, wood: 50 }, upgradeTime: 10, desc: '+5 Vàng/ngày, +8 Dân', income: 5, capacity: 8 }
+        ]
+    },
+    tavern: {
+        id: 'tavern', name: 'Quán Rượu', type: 'service', size: 2,
+        levels: [
+            { level: 1, spriteIndex: 21, cost: { gold: 300, wood: 100, stone: 20 }, upgradeTime: 0, desc: 'Nơi thuê Anh Hùng', effect: 'recruit' },
+            { level: 2, spriteIndex: 23, cost: { gold: 600, wood: 200, stone: 50 }, upgradeTime: 30, desc: 'Anh hùng xịn hơn (WIP)', effect: 'recruit' }
+        ]
+    },
+    blacksmith: {
+        id: 'blacksmith', name: 'Lò Rèn', type: 'craft', size: 2,
+        levels: [
+            { level: 1, spriteIndex: 15, cost: { gold: 500, wood: 150, stone: 100 }, upgradeTime: 0, desc: 'Sản xuất vũ khí', effect: 'equip' },
+            { level: 2, spriteIndex: 16, cost: { gold: 1000, wood: 300, stone: 200 }, upgradeTime: 45, desc: 'Vũ khí cấp 2', effect: 'equip' },
+            { level: 3, spriteIndex: 17, cost: { gold: 2000, wood: 600, stone: 400 }, upgradeTime: 90, desc: 'Vũ khí cấp 3', effect: 'equip' }
+        ]
+    },
+    market: {
+        id: 'market', name: 'Chợ', type: 'economy', size: 2,
+        levels: [
+            { level: 1, spriteIndex: 12, cost: { gold: 800, wood: 300 }, upgradeTime: 0, desc: 'Giao thương tài nguyên', effect: 'trade' },
+            { level: 2, spriteIndex: 13, cost: { gold: 1500, wood: 600 }, upgradeTime: 60, desc: 'Giao thương tốt hơn', effect: 'trade' },
+            { level: 3, spriteIndex: 14, cost: { gold: 3000, wood: 1200 }, upgradeTime: 120, desc: 'Thuế thấp (WIP)', effect: 'trade' }
+        ]
+    },
+    woodcutter: {
+        id: 'woodcutter', name: 'Trại Gỗ', type: 'resource', size: 2,
+        levels: [
+            { level: 1, spriteIndex: 1, cost: { gold: 150 }, upgradeTime: 0, desc: '+5 Gỗ/ngày', resource: 'wood', amount: 5 },
+            { level: 2, spriteIndex: 2, cost: { gold: 450 }, upgradeTime: 0, desc: '+10 Gỗ/ngày', resource: 'wood', amount: 10 }
+        ]
+    },
+    quarry: {
+        id: 'quarry', name: 'Mỏ Đá', type: 'resource', size: 2,
+        levels: [
+            { level: 1, spriteIndex: 3, cost: { gold: 200, wood: 50 }, upgradeTime: 0, desc: '+3 Đá/ngày', resource: 'stone', amount: 3 },
+            { level: 2, spriteIndex: 4, cost: { gold: 500, wood: 150 }, upgradeTime: 20, desc: '+6 Đá/ngày', resource: 'stone', amount: 6 }
+        ]
+    },
+    decoration: {
+        id: 'decoration', name: 'Nhà Anh Hùng', type: 'service', maxCount: 5,
+        levels: [
+            { level: 1, spriteIndex: 20, cost: { gold: 100, stone: 50 }, upgradeTime: 0, desc: 'Chỗ ở cho 1 anh hùng', fame: 10, capacity: 1 },
+            { level: 2, spriteIndex: 21, cost: { gold: 300, stone: 150 }, upgradeTime: 15, desc: 'Hồi phục nhanh hơn', fame: 20, capacity: 1 }
+        ]
+    }
 };
 
 export const SPRITE_MAP = {
-    tree: [4, 5, 25, 27, 28, 31, 32, 33],
-    hero: 34,
-    villager: [34, 22], // Using knight and person sprites
-    flower: 25,
-    path: 28,
-    rock: 32,
-    water: 33
+    hero: 26,
+    villager: [24, 25],
+    tree: [5, 6, 7, 8, 9, 10, 11]
 };
 
 export const QUESTS_DB = [

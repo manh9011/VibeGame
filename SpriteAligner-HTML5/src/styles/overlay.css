@@ -1,0 +1,179 @@
+﻿#overlayControls {
+    position: absolute;
+    pointer-events: none;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transform-origin: top left;
+}
+
+#overlayControls > * {
+    pointer-events: auto;
+}
+
+.overlay-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    transform: translateY(-120%);
+}
+
+.overlay-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+}
+
+.overlay-handle,
+.overlay-delete {
+    pointer-events: auto;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    height: 20px;
+    min-width: 20px;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    color: #ffffff;
+    background: rgba(59, 130, 246, 0.9);
+    transition: background 0.2s;
+}
+
+.overlay-delete {
+    background: rgba(220, 38, 38, 0.9);
+}
+
+.overlay-handle:hover {
+    background: #2563eb;
+}
+
+.overlay-delete:hover {
+    background: #b91c1c;
+}
+
+.overlay-label {
+    background: rgba(0, 0, 0, 0.8);
+    color: #4ade80;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 0;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+.overlay-scale {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transform: translateY(-120%);
+}
+
+.overlay-icon-btn {
+    pointer-events: auto;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    width: 22px;
+    height: 20px;
+    font-size: 11px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    background: rgba(59, 130, 246, 0.9);
+    transition: background 0.2s;
+}
+
+.overlay-icon-btn:hover {
+    background: #2563eb;
+}
+
+.side-buttons {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
+    pointer-events: none;
+}
+
+.btn-group-v {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+}
+
+.scale-btn {
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    width: 45px;
+    height: 20px;
+    font-size: 9px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.btn-copy-cell,
+.btn-paste-cell {
+    width: 45px;
+    height: 20px;
+}
+
+.scale-btn:hover {
+    background: #2563eb;
+}
+
+.btn-reset-cell {
+    background: rgba(220, 38, 38, 0.9);
+    margin-top: 4px;
+    font-size: 10px;
+    padding: 2px 8px;
+    height: 20px;
+}
+
+.btn-reset-cell:hover {
+    background: #b91c1c;
+}
+
+.overlay-column-left {
+    margin-right: auto;
+    transform: translateX(-120%);
+}
+
+.overlay-column-right {
+    margin-left: auto;
+    transform: translateX(120%);
+}
+
+.overlay-reset {
+    margin-top: auto;
+    transform: translateY(120%);
+    width: auto;
+}
+
+.overlay-paste {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    transform: translateY(120%);
+}

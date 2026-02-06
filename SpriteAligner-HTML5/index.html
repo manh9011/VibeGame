@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sprite Sheet Aligner Pro (Pixel Mode)</title>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0">
+    </head>
+    <body>
+        <div class="app-shell">
+            <div class="controls">
+                <div class="control-section">
+                    <div class="control-header">
+                        <h1 class="app-title text-white" data-i18n="app.title">Sprite Aligner</h1>
+                        <select
+                            id="languageSelect"
+                            class="input-dark input-select input-select--compact"
+                            data-i18n-title="labels.language"
+                            data-i18n-aria="aria.languageSelect"
+                            aria-label="Language"
+                        ></select>
+                    </div>
+
+                    <button id="openFileBtn" class="btn btn-primary" type="button">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span data-i18n="buttons.uploadImage">Upload Image</span>
+                    </button>
+                    
+                    <div class="field-row field-row--actions">
+                        <button id="resetBtn" class="btn btn-outline" data-i18n="buttons.resetAll" disabled>Reset All</button>
+                        <button id="downloadBtn" class="btn btn-success" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            <span data-i18n="buttons.export">Export</span>
+                        </button>
+                    </div>
+
+                    <input type="file" id="fileInput" accept="image/png, image/jpeg" class="file-input-hidden">
+
+                    <div class="field-row field-row--double">
+                        <label class="field-inline">
+                            <span data-i18n="labels.columns">Columns (C)</span>
+                            <input type="number" id="inpCols" class="input-dark" value="6" min="1">
+                        </label>
+                        <label class="field-inline">
+                            <span data-i18n="labels.rows">Rows (R)</span>
+                            <input type="number" id="inpRows" class="input-dark" value="6" min="1">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="section-title" data-i18n="labels.iso">ISO</div>
+
+                    <div class="field-row field-row--triple">
+                        <label class="field-inline">
+                            <span data-i18n="labels.grid">Grid</span>
+                            <input type="number" id="inpIsoGridSize" class="input-dark" value="6" min="1" data-i18n-title="iso.gridTitle">
+                        </label>
+                        <label class="field-inline">
+                            <span data-i18n="labels.width">Width</span>
+                            <input type="number" id="inpIsoTileW" class="input-dark" value="64" step="2">
+                        </label>
+                        <label class="field-inline">
+                            <span data-i18n="labels.height">Height</span>
+                            <input type="number" id="inpIsoTileH" class="input-dark" value="32" step="2">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="section-title" data-i18n="labels.anchor">Anchor Point</div>
+                    <div class="field-row">
+                        <label class="field-inline">
+                            <span data-i18n="labels.anchorMode">Mode</span>
+                            <select id="selAnchorMode" class="input-dark input-select">
+                                <option value="ratio" data-i18n="labels.anchorRatio">Ratio</option>
+                                <option value="pixel" data-i18n="labels.anchorPixel">Pixel</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="field-row field-row--double">
+                        <label class="field-inline">
+                            <span>X</span>
+                            <input type="text" id="inpAnchorX" class="input-dark" value="1/2w" data-i18n-title="labels.anchorXTitle">
+                        </label>
+                        <label class="field-inline">
+                            <span>Y</span>
+                            <input type="text" id="inpAnchorY" class="input-dark" value="3/4h" data-i18n-title="labels.anchorYTitle">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="field-row field-row--toggles">
+                        <label class="toggle-inline">
+                            <input type="checkbox" id="chkPixelMode" class="accent-blue-500 checkbox-sm" checked>
+                            <span data-i18n="labels.pixelMode">Pixel Mode</span>
+                        </label>
+                        <label class="toggle-inline">
+                            <input type="checkbox" id="chkShowShortcuts" class="accent-blue-500 checkbox-sm" checked>
+                            <span data-i18n="labels.showShortcuts">Show Shortcuts</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="control-section control-section--history">
+                    <div class="field-row field-row--history">
+                        <span data-i18n="labels.history">History</span>
+                        <div class="icon-group">
+                            <button id="undoBtn" class="btn btn-outline btn-icon" data-i18n-title="buttons.undo" data-i18n-aria="aria.undo" aria-label="Undo"><span class="msr">undo</span></button>
+                            <button id="redoBtn" class="btn btn-outline btn-icon" data-i18n-title="buttons.redo" data-i18n-aria="aria.redo" aria-label="Redo"><span class="msr">redo</span></button>
+                            <button id="orderHistoryBtn" class="btn btn-outline btn-icon" data-i18n-title="buttons.orderHistoryNewest" data-i18n-aria="aria.orderHistory" aria-label="Sort history"><span class="msr">sort</span></button>
+                            <button id="clearHistoryBtn" class="btn btn-outline btn-icon" data-i18n-title="buttons.clearHistory" data-i18n-aria="aria.clearHistory" aria-label="Clear history"><span class="msr">delete_sweep</span></button>
+                        </div>
+                    </div>
+                    <div id="historyList" class="history-list" role="listbox" data-i18n-aria="aria.historyList" aria-label="History list"></div>
+                </div>
+            </div>
+
+            <div class="workspace">
+                <div class="canvas-wrapper" id="canvasWrapper">
+                    <div class="canvas-bg"></div>
+                    <canvas id="mainCanvas"></canvas>
+
+                    <div id="overlayControls">
+                <div class="overlay-top">
+                    <div class="overlay-left">
+                        <button id="reorderHandleBtn" class="overlay-handle" data-i18n-title="overlay.reorder" data-i18n-aria="aria.reorderCell" aria-label="Reorder cell">
+                            <span class="msr">drag_indicator</span>
+                        </button>
+                    </div>
+                    <button id="deleteCellBtn" class="overlay-delete" data-i18n-title="overlay.delete" data-i18n-aria="aria.deleteCell" aria-label="Delete cell">
+                        <span class="msr">close</span>
+                    </button>
+                </div>
+                <div class="overlay-scale">
+                    <div class="overlay-label" id="lblScale">x1.00</div>
+                    <button id="resetCellBtn" class="overlay-icon-btn" data-i18n-title="overlay.resetCell" data-i18n-aria="aria.resetCell" aria-label="Reset cell">
+                        <span class="msr">restart_alt</span>
+                    </button>
+                </div>
+
+                <div class="side-buttons">
+                    <div class="btn-group-v overlay-column-left">
+                        <button class="scale-btn" data-scale="-0.25">-0.25</button>
+                        <button class="scale-btn" data-scale="-0.1">-0.10</button>
+                        <button class="scale-btn" data-scale="-0.05">-0.05</button>
+                        <button class="scale-btn" data-scale="-0.02">-0.02</button>
+                        <button class="scale-btn" data-scale="-0.01">-0.01</button>
+                    </div>
+
+                    <div class="btn-group-v overlay-column-right">
+                        <button class="scale-btn" data-scale="0.25">+0.25</button>
+                        <button class="scale-btn" data-scale="0.1">+0.10</button>
+                        <button class="scale-btn" data-scale="0.05">+0.05</button>
+                        <button class="scale-btn" data-scale="0.02">+0.02</button>
+                        <button class="scale-btn" data-scale="0.01">+0.01</button>
+                    </div>
+                </div>
+
+            </div>
+
+                    <div class="shortcut-hint" id="shortcutHint">
+                        <div data-i18n-html="shortcuts.zoom">Scroll: Zoom View</div>
+                        <div data-i18n-html="shortcuts.pan">Space + Drag: Pan View</div>
+                        <div data-i18n-html="shortcuts.delete">Delete: Remove Cell</div>
+                        <div data-i18n-html="shortcuts.nudge">Arrows: Nudge 1px</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="cellMenu" class="context-menu" role="menu" aria-hidden="true">
+            <button type="button" class="context-menu-item" data-action="edit" data-i18n="menu.edit">Edit cell</button>
+            <button type="button" class="context-menu-item" data-action="copy" data-i18n="menu.copy">Copy cell</button>
+            <button type="button" class="context-menu-item" data-action="paste" data-i18n="menu.paste">Paste cell</button>
+        </div>
+
+        <div id="cellEditor" class="editor-modal" aria-hidden="true">
+            <div class="editor-card" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+                <div class="editor-header">
+                    <div class="editor-header-left">
+                        <button id="editorUndoBtn" class="btn btn-outline btn-small editor-icon-btn" type="button" data-i18n-title="editor.undo" aria-label="Undo"><span class="msr">undo</span></button>
+                        <button id="editorRedoBtn" class="btn btn-outline btn-small editor-icon-btn" type="button" data-i18n-title="editor.redo" aria-label="Redo"><span class="msr">redo</span></button>
+                        <div class="editor-divider" aria-hidden="true"></div>
+                        <button type="button" class="editor-tool-btn is-active" data-tool="pan" data-i18n-title="editor.pan" aria-label="Pan"><span class="msr">pan_tool</span></button>
+                        <button type="button" class="editor-tool-btn" data-tool="select" data-i18n-title="editor.select" aria-label="Select"><span class="msr">crop_square</span></button>
+                        <button type="button" class="editor-tool-btn" data-tool="pencil" data-i18n-title="editor.pencil" aria-label="Pencil"><span class="msr">draw</span></button>
+                        <button type="button" class="editor-tool-btn" data-tool="fill" data-i18n-title="editor.fill" aria-label="Fill"><span class="msr">format_color_fill</span></button>
+                        <button type="button" class="editor-tool-btn" data-tool="eraser" data-i18n-title="editor.eraser" aria-label="Eraser"><span class="msr">ink_eraser</span></button>
+                        <label class="editor-field editor-field--icon">
+                            <span data-i18n="editor.color">Color</span>
+                            <input type="color" id="editorColor" value="#ff3b30" data-i18n-title="editor.color" aria-label="Left color">
+                        </label>
+                        <label class="editor-field editor-field--icon">
+                            <span data-i18n="editor.colorRight">Right Color</span>
+                            <input type="color" id="editorColorRight" value="#22c55e" data-i18n-title="editor.colorRight" aria-label="Right color">
+                        </label>
+                    </div>
+                    <div class="editor-title" id="editorTitle" data-i18n="editor.title">Edit cell</div>
+                    <div class="editor-header-actions">
+                        <button id="editorDeleteSelectionBtn" class="btn btn-outline btn-small editor-icon-btn" type="button" data-i18n-title="editor.deleteSelection" aria-label="Delete selection" disabled><span class="msr">delete</span></button>
+                        <button id="editorCancelBtn" class="btn btn-outline btn-small editor-icon-btn" type="button" data-i18n-title="editor.cancel" aria-label="Cancel"><span class="msr">undo</span></button>
+                        <button id="editorSaveBtn" class="btn btn-success btn-small editor-icon-btn" type="button" data-i18n-title="editor.save" aria-label="Save"><span class="msr">check</span></button>
+                        <button id="editorMaximizeBtn" class="btn btn-outline btn-small editor-icon-btn" type="button" data-i18n-title="editor.maximize" aria-label="Maximize"><span class="msr">open_in_full</span></button>
+                        <button id="editorCloseBtn" class="btn btn-outline btn-small editor-icon-btn" type="button" aria-label="Close"><span class="msr">close</span></button>
+                    </div>
+                </div>
+                <div class="editor-toolbar">
+                    <div class="editor-toolbar-group">
+                        <div id="editorSizeGroup" class="editor-size-group" role="group" aria-label="Brush size">
+                            <button type="button" class="editor-size-btn is-active" data-size="1" data-i18n-title="editor.size1" aria-label="1px"><span class="editor-size-dot size-1"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="2" data-i18n-title="editor.size2" aria-label="2px"><span class="editor-size-dot size-2"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="3" data-i18n-title="editor.size3" aria-label="3px"><span class="editor-size-dot size-3"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="4" data-i18n-title="editor.size4" aria-label="4px"><span class="editor-size-dot size-4"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="5" data-i18n-title="editor.size5" aria-label="5px"><span class="editor-size-dot size-5"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="6" data-i18n-title="editor.size6" aria-label="6px"><span class="editor-size-dot size-6"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="7" data-i18n-title="editor.size7" aria-label="7px"><span class="editor-size-dot size-7"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="8" data-i18n-title="editor.size8" aria-label="8px"><span class="editor-size-dot size-8"></span></button>
+                            <button type="button" class="editor-size-btn" data-size="9" data-i18n-title="editor.size9" aria-label="9px"><span class="editor-size-dot size-9"></span></button>
+                        </div>
+                        <div id="editorPatternGroup" class="editor-pattern-group" role="group" data-i18n-title="editor.patterns" aria-label="Fill patterns">
+                            <button type="button" class="editor-pattern-btn is-active" data-pattern="solid" aria-label="Pattern 1"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="checker" aria-label="Pattern 2"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="checker2" aria-label="Pattern 3"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="dots" aria-label="Pattern 4"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="dots2" aria-label="Pattern 5"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="hatch" aria-label="Pattern 6"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="hatch2" aria-label="Pattern 7"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="hstripe" aria-label="Pattern 8"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="vstripe" aria-label="Pattern 9"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="diag" aria-label="Pattern 10"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="diag2" aria-label="Pattern 11"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="grid" aria-label="Pattern 12"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="grid2" aria-label="Pattern 13"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="cross" aria-label="Pattern 14"></button>
+                            <button type="button" class="editor-pattern-btn" data-pattern="noise" aria-label="Pattern 15"></button>
+                        </div>
+                        <div id="editorShapeGroup" class="editor-shape-group" role="group" data-i18n-title="editor.shapes" aria-label="Shapes">
+                            <button type="button" class="editor-shape-btn is-active" data-shape="line" aria-label="Line"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="rect" aria-label="Rectangle"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="rect_fill" aria-label="Filled rectangle"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="circle" aria-label="Circle"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="circle_fill" aria-label="Filled circle"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="ellipse" aria-label="Ellipse"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="ellipse_fill" aria-label="Filled ellipse"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="triangle" aria-label="Triangle"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="triangle_fill" aria-label="Filled triangle"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="diamond" aria-label="Diamond"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="diamond_fill" aria-label="Filled diamond"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="plus" aria-label="Plus"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="cross" aria-label="Cross"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="star" aria-label="Star"></button>
+                            <button type="button" class="editor-shape-btn" data-shape="arrow" aria-label="Arrow"></button>
+                        </div>
+                    </div>
+                    <div class="editor-toolbar-group editor-palette-group">
+                        <div id="editorPaletteModes" class="editor-palette-modes" role="group" aria-label="Palette mode">
+                            <button type="button" class="editor-palette-mode-btn is-active" data-mode="image" data-i18n="editor.paletteImage">Image palette</button>
+                            <button type="button" class="editor-palette-mode-btn" data-mode="basic" data-i18n="editor.paletteBasic">Basic</button>
+                            <button type="button" class="editor-palette-mode-btn" data-mode="warm" data-i18n="editor.paletteWarm">Warm</button>
+                            <button type="button" class="editor-palette-mode-btn" data-mode="cool" data-i18n="editor.paletteCool">Cool</button>
+                            <button type="button" class="editor-palette-mode-btn" data-mode="pastel" data-i18n="editor.palettePastel">Pastel</button>
+                            <button type="button" class="editor-palette-mode-btn" data-mode="mono" data-i18n="editor.paletteMono">Mono</button>
+                        </div>
+                        <div id="editorPalette" class="editor-palette" data-i18n-title="editor.palette" aria-label="Color palette"></div>
+                    </div>
+                </div>
+                <div class="editor-body" id="editorBody">
+                    <div id="editorCanvasWrap" class="editor-canvas-wrap">
+                        <canvas id="editorCanvas"></canvas>
+                        <div id="editorCursor" class="editor-cursor" aria-hidden="true"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script type="module" src="/src/main.ts"></script>
+    </body>
+</html>

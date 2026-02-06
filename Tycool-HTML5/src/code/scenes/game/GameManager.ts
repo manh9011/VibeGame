@@ -1,6 +1,6 @@
 import { GameObject } from '@/engine/object/gameObject';
 import { CloudClient } from '@/code/CloudClient';
-import { Tree as Tree } from '@/code/scenes/game/entity/Tree';
+import { Tree } from '@/code/scenes/game/entity/Tree';
 import { Landfill } from '@/code/scenes/game/entity/Landfill';
 import { Building } from '@/code/scenes/game/entity/Building';
 import { Tile } from '@/code/scenes/game/entity/Tile';
@@ -20,7 +20,7 @@ export interface GameSceneData {
     map: Tile[][];
     // New: Map Objects layer
     objectMap: (GameObject | null)[][];
-    buildings: { x: number, y: number, type: string }[];
+    buildings: { x: number, y: number, type: string, level: number, upgradeEndTime?: number }[];
     heroes: Hero[];
     villagers: Villager[];
     activeQuests: ActiveQuest[];
@@ -130,10 +130,21 @@ export class GameManager extends GameObject {
             this.DailyReset();
         }
 
+        // Sync and Update Buildings
         this.scene.buildings.forEach(b => {
-            const data = BUILDINGS_DB[b.type];
-            if (data.type === 'resource' && data.resource) this.AddResource(data.resource as any, data.amount || 0);
-            if (data.type === 'economy' && data.income) this.AddResource('gold', data.income);
+            const obj = this.scene.objectMap[b.y][b.x];
+            if (obj && obj instanceof Building) {
+                // Sync data from Object to Scene Data (for saving)
+                b.level = obj.level;
+                b.upgradeEndTime = obj.upgradeEndTime;
+            }
+
+            const def = BUILDINGS_DB[b.type];
+            const level = b.level || 1;
+            const data = def.levels[level - 1];
+
+            if (def.type === 'resource' && data.resource) this.AddResource(data.resource as any, data.amount || 0);
+            if (def.type === 'economy' && data.income) this.AddResource('gold', data.income);
         });
 
         this.UpdateQuests();
@@ -202,6 +213,17 @@ export class GameManager extends GameObject {
         const building = BUILDINGS_DB[buildingId];
         const size = building.size || 1;
 
+        // Check Limit
+        if (building.maxCount) {
+            const currentCount = this.scene.buildings.filter(b => b.type === buildingId).length;
+            if (currentCount >= building.maxCount) {
+                this.onNotify(`Đã đạt giới hạn ${building.name} (${currentCount}/${building.maxCount})`, "error");
+                return false;
+            }
+        }
+
+        const level1 = building.levels[0];
+
         // Validation for all tiles
         for (let dy = 0; dy < size; dy++) {
             for (let dx = 0; dx < size; dx++) {
@@ -221,35 +243,16 @@ export class GameManager extends GameObject {
             }
         }
 
-        if (this.SpendResource(building.cost)) {
+        if (this.SpendResource(level1.cost)) {
             // Occupy all tiles
             for (let dy = 0; dy < size; dy++) {
                 for (let dx = 0; dx < size; dx++) {
                     this.scene.map[y + dy][x + dx].building = buildingId;
-                    // Only create one building object at origin (or reference? for now just null/reference logic if needed)
-                    // But our objectMap logic expects objects.
-                    // Option: Create ONE building object at (x,y), other cells have reference or null?
-                    // Previous logic: tile.building = id. objectMap has Building object.
-
-                    // Let's put the Building object only at the top-left coordinate in objectMap
-                    // The other cells in objectMap can be null (since tile.building denotes occupation)
-                    // Or we can put references. For now, let's just put the main building at x,y.
                 }
             }
-            // this.scene.buildings.push({ x, y, type: buildingId }); -> This is fine, listing unique buildings
 
-            // Add to Object Map (Only at origin)
-            if (!this.scene.objectMap[y]) this.scene.objectMap[y] = [];
-            this.scene.objectMap[y][x] = new Building(x, y, buildingId);
-
-            // Allow clicking other parts? 
-            // HandleClick in GameScene checks tile.building. If tile.building exists but objectMap is null (for parts),
-            // we need to find the origin. 
-            // Actually, simple solution: Store a reference or special "Part" object?
-            // Or just search? Searching is slow.
-            // Let's store the SAME Building instance in all cells?
-            // Yes, sharing the reference is cleaner for interaction.
-            const bObj = new Building(x, y, buildingId);
+            // Create Object (Shared reference)
+            const bObj = new Building(x, y, buildingId, 1);
             for (let dy = 0; dy < size; dy++) {
                 for (let dx = 0; dx < size; dx++) {
                     if (!this.scene.objectMap[y + dy]) this.scene.objectMap[y + dy] = [];
@@ -257,10 +260,11 @@ export class GameManager extends GameObject {
                 }
             }
 
-            this.scene.buildings.push({ x, y, type: buildingId });
+            this.scene.buildings.push({ x, y, type: buildingId, level: 1 });
 
-            if (building.fame) this.scene.resources.fame += building.fame;
-            if (buildingId === 'house') this.scene.resources.pop += (building.capacity || 0);
+            if (level1.fame) this.scene.resources.fame += level1.fame;
+            if (level1.capacity) this.scene.resources.pop += level1.capacity;
+
             this.onNotify(`Đã xây dựng ${building.name}`, "success");
             this.needsSync = true;
             return true;
@@ -305,15 +309,11 @@ export class GameManager extends GameObject {
 
         if (this.SpendResource({ gold: info.cost })) {
             if (info.type === 'tree') {
-                const obj = this.scene.objectMap[y][x] as Tree;
-                obj.chopping = true;
-                obj.maxChopTime = info.time / 1000; // Store as seconds?
-                // Wait, previous logic used seconds in some places.
-                // ObjTree: chopTime is number. 
-                // Let's stick to using seconds for internal update
-                obj.chopTime = info.time / 1000;
-                obj.maxChopTime = info.time / 1000;
-                this.onNotify("Bắt đầu chặt cây...", "info");
+                const obj = this.scene.objectMap[y][x];
+                if (obj instanceof Tree) {
+                    obj.StartChopping(info.time / 1000);
+                    this.onNotify("Bắt đầu chặt cây...", "info");
+                }
             } else if (info.type === 'water') {
                 // Spawn Landfill
                 const timeSec = info.time / 1000;
@@ -352,27 +352,15 @@ export class GameManager extends GameObject {
         const buildingId = tile.building;
         const buildingDef = BUILDINGS_DB[buildingId];
 
-        // Refund 50%
-        if (buildingDef.cost.gold) this.AddResource('gold', Math.floor(buildingDef.cost.gold * 0.5));
-        if (buildingDef.cost.wood) this.AddResource('wood', Math.floor(buildingDef.cost.wood * 0.5));
-        if (buildingDef.cost.stone) this.AddResource('stone', Math.floor(buildingDef.cost.stone * 0.5));
-
-        // Remove fame/pop effects
-        if (buildingDef.fame) this.scene.resources.fame = Math.max(0, this.scene.resources.fame - buildingDef.fame);
-        if (buildingId === 'house') this.scene.resources.pop = Math.max(0, this.scene.resources.pop - (buildingDef.capacity || 0));
-
-        // Clear Scene
-        // Clear Scene covering all tiles
+        // Find building entry to get level
         const size = buildingDef.size || 1;
-        // Find origin if current x,y is not origin? 
-        // We assume RemoveBuilding is called with x,y passed from somewhere.
-        // If it's called with arbitrary tile, we need to find origin.
-        // But buildings list stores origin.
         const bEntry = this.scene.buildings.find(b => b.x <= x && b.x + size > x && b.y <= y && b.y + size > y);
+        let level = 1;
         let originX = x;
         let originY = y;
 
         if (bEntry) {
+            level = bEntry.level || 1;
             originX = bEntry.x;
             originY = bEntry.y;
         }
@@ -391,6 +379,29 @@ export class GameManager extends GameObject {
 
         this.onNotify(`Đã bán ${buildingDef.name}`, "info");
         this.needsSync = true;
+    }
+
+    public UpgradeBuilding(x: number, y: number): boolean {
+        const obj = this.scene.objectMap[y][x];
+        if (!obj || !(obj instanceof Building)) return false;
+
+        if (!obj.CanUpgrade()) {
+            this.onNotify("Không thể nâng cấp (Max level hoặc đang nâng)!", "error");
+            return false;
+        }
+
+        const nextData = obj.NextLevelData;
+        if (!nextData) return false;
+
+        if (this.SpendResource(nextData.cost)) {
+            obj.StartUpgrade();
+            this.onNotify(`Bắt đầu nâng cấp lên cấp ${obj.level + 1}`, "success");
+            this.needsSync = true;
+            return true;
+        } else {
+            this.onNotify("Không đủ tài nguyên!", "error");
+            return false;
+        }
     }
 
     public MoveBuilding(oldX: number, oldY: number, newX: number, newY: number): boolean {
@@ -528,6 +539,10 @@ export class GameManager extends GameObject {
     }
 
     public Hire(index: number) {
+        if (this.scene.heroes.length >= 30) {
+            this.onNotify("Đã đạt giới hạn 30 Hero!", "error");
+            return;
+        }
         if (index < 0 || index >= this.recruitList.length) return;
         const recruit = this.recruitList[index];
         if (recruit.cost && this.SpendResource({ gold: recruit.cost })) {
@@ -636,7 +651,18 @@ export class GameManager extends GameObject {
             // Second pass: Buildings from scene.buildings list (authoritative)
             if (this.scene.buildings) {
                 this.scene.buildings.forEach(b => {
-                    const bObj = new Building(b.x, b.y, b.type);
+                    const level = b.level || 1;
+                    const bObj = new Building(b.x, b.y, b.type, level);
+                    if (b.upgradeEndTime) {
+                        bObj.upgradeEndTime = b.upgradeEndTime;
+                        // Recalculate duration if needed? Building.StartUpgrade sets it.
+                        // But here we might just need it for the bar.
+                        // Ideally we should save duration too or look it up.
+                        // Building.ts: upgradeDuration is used for progress bar.
+                        // We can look up next level data to get duration.
+                        const nextData = bObj.NextLevelData;
+                        if (nextData) bObj.upgradeDuration = nextData.upgradeTime;
+                    }
                     const def = BUILDINGS_DB[b.type];
                     const size = def ? (def.size || 1) : 1;
 

@@ -10,6 +10,7 @@ import { Tooltip } from '@/code/objects/Tooltip';
 import { Button } from '@/code/objects/Button';
 import { ConfirmDialog } from '@/code/objects/ConfirmDialog';
 import { Building } from '@/code/scenes/game/entity/Building';
+import { Tree } from '@/code/scenes/game/entity/Tree';
 import { AssetLoader } from '@/code/AssetLoader';
 
 export class SceneGame extends GameScene {
@@ -160,21 +161,7 @@ export class SceneGame extends GameScene {
             if (this.btnCancelMove.isHovered) uiHovered = true;
         }
 
-        // Handle Harvest Buttons
-        if (this.pendingHarvest) {
-            if (this.btnHarvest) {
-                this.btnHarvest.x = (window.innerWidth / 2) - 130;
-                this.btnHarvest.y = window.innerHeight - 80;
-                this.btnHarvest.Update(delta);
-                if (this.btnHarvest.isHovered) uiHovered = true;
-            }
-            if (this.btnCancelHarvest) {
-                this.btnCancelHarvest.x = (window.innerWidth / 2) + 10;
-                this.btnCancelHarvest.y = window.innerHeight - 80;
-                this.btnCancelHarvest.Update(delta);
-                if (this.btnCancelHarvest.isHovered) uiHovered = true;
-            }
-        }
+
 
         // Standard Enjine Update (Updates managers)
         // This updates this.ui, this.header, etc.
@@ -363,9 +350,10 @@ export class SceneGame extends GameScene {
                     const fontSize = Math.floor((size === 1 ? 36 : 42) * this.camera.zoom);
 
                     const img = AssetLoader.GetImage('entities');
-                    if (bDef.spriteIndex !== undefined && img) {
+                    const level1 = bDef.levels[0];
+                    if (level1.spriteIndex !== undefined && img) {
                         const cellSize = SPRITE_CONFIG.cellSize;
-                        const spriteIndex = bDef.spriteIndex;
+                        const spriteIndex = level1.spriteIndex;
                         const sx = (spriteIndex % SPRITE_CONFIG.gridSize) * cellSize;
                         const sy = Math.floor(spriteIndex / SPRITE_CONFIG.gridSize) * cellSize;
                         const scale = (size === 1 ? 0.5 : 0.8) * this.camera.zoom;
@@ -385,7 +373,7 @@ export class SceneGame extends GameScene {
                         ctx.SetTextAlign("center");
                         ctx.SetTextBaseline("bottom");
                         ctx.SetFillStyle("white");
-                        ctx.DrawText(bDef.icon, Math.floor(centerPos.x), Math.floor(centerPos.y));
+                        ctx.DrawText(bDef.name.substring(0, 1), Math.floor(centerPos.x), Math.floor(centerPos.y));
                     }
 
                     ctx.Restore();
@@ -465,11 +453,8 @@ export class SceneGame extends GameScene {
             this.btnCancelMove.Draw(ctx, this.camera);
         }
 
-        // Harvest Action Buttons
-        if (this.pendingHarvest) {
-            if (this.btnHarvest) this.btnHarvest.Draw(ctx, this.camera);
-            if (this.btnCancelHarvest) this.btnCancelHarvest.Draw(ctx, this.camera);
-        }
+        // Harvest Action Buttons (Removed)
+
 
         // Selection Menu (Follows camera but drawn in UI space)
         // Only draw if no blocking UI is active and not currently moving/building
@@ -487,9 +472,13 @@ export class SceneGame extends GameScene {
                     // Update positions of buttons in list
                     const sellBtn = this.guiButtons.find(btn => btn.label === "Bán");
                     const moveBtn = this.guiButtons.find(btn => btn.label === "Di chuyển");
+                    const upgradeBtn = this.guiButtons.find(btn => btn.label === "Nâng cấp");
+                    const chopBtn = this.guiButtons.find(btn => btn.label === "Chặt cây");
 
                     if (sellBtn) { sellBtn.x = sx; sellBtn.y = sy; }
-                    if (moveBtn) { moveBtn.x = sx; moveBtn.y = sy - 35; }
+                    if (moveBtn) { moveBtn.x = sx; moveBtn.y = sy - 40; }
+                    if (upgradeBtn) { upgradeBtn.x = sx; upgradeBtn.y = sy - 80; }
+                    if (chopBtn) { chopBtn.x = sx; chopBtn.y = sy - 60; }
                 }
                 b.Draw(ctx, this.camera);
             });
@@ -525,10 +514,11 @@ export class SceneGame extends GameScene {
         }
 
         const tile = game.scene.map[grid.y][grid.x];
+        const obj = game.scene.objectMap[grid.y][grid.x];
 
-        const harvestInfo = game.AttemptHarvest(grid.x, grid.y);
-        if (harvestInfo) {
-            this.ShowHarvestButtons(grid.x, grid.y, harvestInfo);
+        // Check for Tree (or Object)
+        if (obj && obj instanceof Tree) {
+            this.SelectTree(grid.x, grid.y);
             return;
         }
 
@@ -561,10 +551,81 @@ export class SceneGame extends GameScene {
         btnSell.onClick = () => this.AskSell();
         this.guiButtons.push(btnSell);
 
-        const btnMove = new Button(sx, sy - 35, 80, 30, "Di chuyển");
+        const btnMove = new Button(sx, sy - 40, 80, 30, "Di chuyển");
         btnMove.bgColor = "#3b82f6";
         btnMove.onClick = () => this.StartMove();
         this.guiButtons.push(btnMove);
+
+        // Upgrade Button
+        const buildingObj = game.scene.objectMap[y][x];
+        if (buildingObj && buildingObj instanceof Building && buildingObj.CanUpgrade()) {
+            const nextLevel = buildingObj.NextLevelData;
+            const btnUpgrade = new Button(sx, sy - 80, 80, 30, "Nâng cấp");
+            btnUpgrade.bgColor = "#16a34a"; // Green
+            // Show tooltip for cost? Simple confirm for now.
+            btnUpgrade.onClick = () => {
+                this.AskUpgrade(x, y, nextLevel);
+            };
+            this.guiButtons.push(btnUpgrade);
+        }
+    }
+
+    private SelectTree(x: number, y: number) {
+        this.ClearSelection();
+        this.selectedBuilding = { x, y }; // Reuse this for selection positioning
+
+        const pos = this.camera.GridToScreen(x, y);
+        const btnW = 80;
+        const sx = pos.x - btnW / 2;
+        const sy = pos.y - (40 * this.camera.zoom);
+
+        const treeObj = game.scene.objectMap[y][x];
+        if (treeObj && treeObj instanceof Tree) {
+            if (!treeObj.chopping) {
+                const btnChop = new Button(sx, sy - 60, 80, 30, "Chặt cây");
+                btnChop.bgColor = "#16a34a";
+                btnChop.onClick = () => {
+                    // Check cost/stamina?
+                    this.AskChop(x, y);
+                };
+                this.guiButtons.push(btnChop);
+            }
+        }
+    }
+
+    private AskChop(x: number, y: number) {
+        // Direct action or confirm?
+        // User said "tương tự như nút nâng cấp" (similar to upgrade), implies context menu.
+        // Upgrade has confirm dialog.
+        // Let's verify resource in GameManager but here we can just call StartHarvest logic.
+        // Since StartHarvest in GameManager was "blocking" logic related? No, StartHarvest started the action.
+        // AttemptHarvest returned info.
+        // Let's reuse attempt logic if possible, or just call StartHarvest directly if we know it's a tree.
+        // But we need to check if user can chop (stamina/tools?).
+        // For now, call game.StartHarvest(x, y) which triggers logic.
+        game.StartHarvest(x, y);
+        this.ClearSelection();
+    }
+
+    private AskUpgrade(x: number, y: number, nextData: any) {
+        if (!nextData) return;
+        const costStr = [];
+        if (nextData.cost.gold) costStr.push(`${nextData.cost.gold} Vàng`);
+        if (nextData.cost.wood) costStr.push(`${nextData.cost.wood} Gỗ`);
+        if (nextData.cost.stone) costStr.push(`${nextData.cost.stone} Đá`);
+
+        this.activeDialog = new ConfirmDialog(
+            "Nâng Cấp",
+            `Nâng cấp lên Lv? \nChi phí: ${costStr.join(', ')}\nThời gian: ${nextData.upgradeTime}s`,
+            () => {
+                game.UpgradeBuilding(x, y);
+                this.ClearSelection();
+                this.activeDialog = null;
+            },
+            () => {
+                this.activeDialog = null;
+            }
+        );
     }
 
     private ClearSelection() {
@@ -609,31 +670,5 @@ export class SceneGame extends GameScene {
         if (obj && obj instanceof Building) obj.moving = true;
     }
 
-    private ShowHarvestButtons(x: number, y: number, info: { type: 'tree' | 'water', title: string, desc: string, cost: number, time: number }) {
-        this.ClearHarvest();
-        this.pendingHarvest = { x, y, info };
 
-        const actionLabel = info.type === 'tree' ? '🪓 Chặt cây' : '🪣 Lấy nước';
-
-        this.btnHarvest = new Button(0, 0, 120, 40, actionLabel);
-        this.btnHarvest.bgColor = "#16a34a";
-        this.btnHarvest.onClick = () => {
-            if (this.pendingHarvest) {
-                game.StartHarvest(this.pendingHarvest.x, this.pendingHarvest.y);
-            }
-            this.ClearHarvest();
-        };
-
-        this.btnCancelHarvest = new Button(0, 0, 120, 40, "❌ Hủy");
-        this.btnCancelHarvest.bgColor = "#dc2626";
-        this.btnCancelHarvest.onClick = () => {
-            this.ClearHarvest();
-        };
-    }
-
-    private ClearHarvest() {
-        this.pendingHarvest = null;
-        this.btnHarvest = null;
-        this.btnCancelHarvest = null;
-    }
 }

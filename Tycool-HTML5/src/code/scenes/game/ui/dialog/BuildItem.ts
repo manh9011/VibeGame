@@ -26,7 +26,7 @@ export class BuildItem extends GameObject {
     }
 
     private CanAfford(): boolean {
-        const cost = this.buildingData.cost;
+        const cost = this.buildingData.levels[0].cost;
         const res = game.scene.resources;
 
         if (cost.gold && res.gold < cost.gold) return false;
@@ -48,7 +48,8 @@ export class BuildItem extends GameObject {
 
         // 1. Large Icon (Sprite or Emoji)
         const img = AssetLoader.GetImage('entities');
-        const spriteIndex = this.buildingData.spriteIndex;
+        const levelData = this.buildingData.levels[0];
+        const spriteIndex = levelData.spriteIndex;
 
         if (spriteIndex !== undefined && img) {
             const cellSize = SPRITE_CONFIG.cellSize;
@@ -68,7 +69,8 @@ export class BuildItem extends GameObject {
             renderer.SetTextAlign("center");
             renderer.SetTextBaseline("middle");
             renderer.SetFillStyle("white");
-            renderer.DrawText(this.buildingData.icon, this.x + this.width / 2, this.y + 40);
+            // Fallback to name first char if no sprite (icon removed)
+            renderer.DrawText(this.buildingData.name.substring(0, 1), this.x + this.width / 2, this.y + 40);
         }
 
         // 2. Name
@@ -77,10 +79,11 @@ export class BuildItem extends GameObject {
         renderer.DrawText(this.buildingData.name, this.x + this.width / 2, this.y + 75);
 
         // 3. Detailed Cost
+        const cost = levelData.cost;
         const costs: string[] = [];
-        if (this.buildingData.cost.gold) costs.push(`$${this.buildingData.cost.gold}`);
-        if (this.buildingData.cost.wood) costs.push(`🪵${this.buildingData.cost.wood}`);
-        if (this.buildingData.cost.stone) costs.push(`🪨${this.buildingData.cost.stone}`);
+        if (cost.gold) costs.push(`$${cost.gold}`);
+        if (cost.wood) costs.push(`🪵${cost.wood}`);
+        if (cost.stone) costs.push(`🪨${cost.stone}`);
         const costStr = costs.join(' ');
 
         renderer.SetFont(`11px ${FONTS.ui}`);

@@ -47,7 +47,22 @@ export class Tooltip extends GameObject {
             if (tile.building) {
                 const b = BUILDINGS_DB[tile.building];
                 this.title = b.name;
-                this.desc = b.desc;
+
+                // Try to find the actual building object to get level info
+                const obj = game.scene.objectMap[grid.y][grid.x];
+                let desc = "";
+                if (obj && (obj as any).CurrentLevelData) {
+                    // Assume it's a Building
+                    const bObj = obj as any;
+                    const data = bObj.CurrentLevelData;
+                    desc = data.desc || "";
+                    // Optionally show level?
+                    this.title = `${b.name} (Lv.${bObj.level})`;
+                } else {
+                    desc = b.levels[0].desc || "";
+                }
+
+                this.desc = desc;
                 this.isVisible = true;
 
                 const isoPos = this.camera.GridToScreen(grid.x, grid.y);

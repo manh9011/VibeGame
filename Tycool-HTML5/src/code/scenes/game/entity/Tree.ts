@@ -23,6 +23,14 @@ export class Tree extends GameObject {
         this.progressBar.yOffset = -50;
     }
 
+    public StartChopping(duration: number) {
+        this.chopping = true;
+        this.maxChopTime = duration;
+        this.chopTime = duration;
+        // Reset progress?
+        this.progressBar.progress = 0;
+    }
+
     public Update(delta: number): void {
         super.Update(delta);
         if (this.chopping) {
